@@ -12,6 +12,7 @@ A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural
 | **Search** | Filter and browse vulnerabilities by severity, year, vendor, product, and keyword |
 | **Visualizations** | Interactive charts for CVE trends, severity distributions, and vendor impact |
 | **Patch Advisor** | Structured risk assessments with AI-generated remediation recommendations |
+| **Stack Analysis** | Input your tech stack and get a personalised CVE exposure report — find which vulnerabilities may affect you specifically |
 
 ---
 
@@ -142,7 +143,8 @@ cve-assistant/
 │   ├── 1_Chat.py             # RAG-powered natural language Q&A
 │   ├── 2_Search.py           # Structured CVE search and filtering
 │   ├── 3_Visualizations.py   # Interactive Plotly dashboard
-│   └── 4_Patch_Advisor.py    # AI-powered patch recommendations
+│   ├── 4_Patch_Advisor.py    # AI-powered patch recommendations
+│   └── 5_Stack_Analysis.py   # Tech stack matcher and AI exposure report
 │
 ├── data/
 │   ├── raw/                  # Raw JSON responses from NVD API (per year)
@@ -152,6 +154,33 @@ cve-assistant/
     ├── cve.sqlite            # Structured CVE database (fast filtering and charts)
     └── chroma/               # ChromaDB vector store (semantic search)
 ```
+
+---
+
+## Stack Analysis
+
+The Stack Analysis page lets you input the technologies your project uses (one per line) and automatically matches them against the local NVD dataset to find potentially relevant CVEs.
+
+Example input:
+
+```
+django
+openssl
+nginx
+postgresql
+redis
+```
+
+The page returns:
+- CVE matches per technology with severity and CVSS scores
+- EPSS exploitation probability scores from the FIRST.org API
+- A composite risk score per CVE (CVSS + EPSS + recency)
+- An AI-generated report with cautious, version-aware advice
+
+Known limitations:
+- Very broad terms like `microsoft` or `java` may match too many rows. Use specific product names instead (e.g. `exchange`, `iis`, `spring`)
+- Terms shorter than 3 characters are automatically skipped
+- Results are potential matches from a limited local dataset only. Always verify against official advisories and use `pip audit`, `trivy`, or `snyk` for production environments.
 
 ---
 

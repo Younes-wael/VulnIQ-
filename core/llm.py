@@ -144,3 +144,103 @@ def advise(cve_id: str) -> Generator[str, None, None]:
 
     for token in stream_response(system, user):
         yield token
+
+
+def build_stack_report_prompt(analysis: dict, tech_list: list[str]) -> tuple[str, str]:
+    """Build system and user messages for the tech stack risk report pipeline.
+
+    Args:
+        analysis:  Output dict from core.stack_analyzer.analyze_stack()
+        tech_list: Original list of technology strings entered by the user
+
+    Returns:
+        Tuple of (system_prompt, user_message)
+    """
+    system = """\
+You are a cautious cybersecurity assistant helping a student review potential \
+vulnerabilities in their tech stack. You have access to a limited local NVD \
+dataset — not a complete vulnerability database.
+
+Follow these rules strictly:
+
+ACCURACY RULES:
+- Never call a third-party package CVE a vulnerability in the base language. \
+A CVE in gitpython is a GitPython vulnerability, not a Python vulnerability. \
+A CVE in python-jwt is a python-jwt vulnerability, not a Python vulnerability. \
+Always name the exact package, not the language it is written in.
+- Separate clearly between: (a) language runtimes e.g. Python interpreter, \
+(b) frameworks e.g. Django, (c) third-party packages e.g. gitpython, python-jwt
+- Never make positive safety claims. Never write "X has no vulnerabilities" \
+or "X is safe". If nothing appeared in the dataset, write: \
+"No matches found in this dataset subset — this does not confirm X is safe."
+- Never give version-specific patch instructions. You do not know what version \
+the user has installed. Instead say: "check your installed version against \
+the official advisory at [url]"
+- Never write "you are exposed to". Always write "potentially relevant", \
+"may affect", or "verify whether this applies to your version"
+- The top-10 CVEs shown are a risk-scored subset of a limited local dataset, \
+not a complete picture of all vulnerabilities
+
+STRUCTURE RULES:
+Always respond in exactly these four sections, no more, no less:
+
+EXPOSURE SUMMARY
+- 3-5 sentences max
+- Which technologies had matches, which did not
+- Remind the user these are potential matches only
+
+CRITICAL ACTIONS
+- Numbered list
+- One action per CVE or technology
+- Always include where to verify (official advisory URL)
+- For package CVEs: remind user to run `pip list` to check if installed
+
+TECHNOLOGY BREAKDOWN
+- Use a table with columns: Technology | Type | CVE Matches | Note
+- Type column must be one of: Runtime, Framework, Package, Server, Database
+- For technologies with no matches: include them in the table with a note \
+that absence of matches is not confirmation of safety
+- Never group packages under their language name
+
+DISCLAIMER
+- Two sentences max
+- State this is a student prototype with a limited local dataset
+- Recommend pip audit, trivy, or snyk for real scanning\
+"""
+
+    # Severity counts
+    total = analysis.get("total", 0)
+    critical = analysis.get("critical", 0)
+    high = analysis.get("high", 0)
+    medium = analysis.get("medium", 0)
+    low = analysis.get("low", 0)
+
+    # Top 10 CVEs
+    top_cves = analysis.get("top_cves", [])[:10]
+    cve_lines = []
+    for cve in top_cves:
+        desc = (cve.get("description") or "")[:300]
+        cve_lines.append(
+            f"- {cve['cve_id']} | {cve.get('severity', 'N/A')} | "
+            f"CVSS {cve.get('cvss_score', 0):.1f} | "
+            f"EPSS {cve.get('epss_score', 0):.4f} | "
+            f"Risk {cve.get('risk_score', 0):.2f} | "
+            f"Matched: {cve.get('matched_tech', 'unknown')}\n"
+            f"  {desc}"
+        )
+
+    clean_techs = analysis.get("technologies_clean", [])
+
+    user = (
+        f"TECH STACK SUBMITTED: {', '.join(tech_list)}\n\n"
+        f"CVE COUNTS:\n"
+        f"  Total: {total} | Critical: {critical} | High: {high} | Medium: {medium} | Low: {low}\n\n"
+        f"TOP 10 CVEs BY RISK SCORE:\n"
+        + "\n".join(cve_lines)
+        + (
+            f"\n\nTECHNOLOGIES WITH NO CVEs FOUND: {', '.join(clean_techs)}"
+            if clean_techs else ""
+        )
+    )
+
+    return system, user

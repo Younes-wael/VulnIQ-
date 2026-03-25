@@ -96,6 +96,12 @@ with col2:
             "Enter any CVE ID and receive a structured risk assessment plus "
             "AI-generated remediation steps."
         )
+    with st.container(border=True):
+        st.markdown("### 🧱 Stack Analysis")
+        st.markdown(
+            "Input your tech stack and get a personalized CVE exposure "
+            "report — find which vulnerabilities may affect you specifically."
+        )
 
 st.divider()
 
@@ -137,6 +143,6 @@ st.divider()
 # 6. FOOTER
 # ─────────────────────────────────────────
 st.caption(
-    "© 2025 Younes-wael · Built as a portfolio project · "  # TODO: replace with your name
+    "© 2026 Younes-wael · Built as a portfolio project · "  # TODO: replace with your name
     "Data sourced from NVD (nvd.nist.gov) · Not affiliated with NIST"
 )
