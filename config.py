@@ -5,7 +5,7 @@ EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 # Pipeline year range — change these to control which years are processed.
 # For quick testing use a single year (e.g. 2023). For full data use 2015–2026.
-PIPELINE_START_YEAR = 2023
+PIPELINE_START_YEAR = 2021
 PIPELINE_END_YEAR = 2023
 CHROMA_PATH = "db/chroma"
 SQLITE_PATH = "db/cve.sqlite"
