@@ -20,12 +20,15 @@ A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural
 
 | Component | Technology |
 |-----------|------------|
-| UI | Streamlit |
+| Streamlit UI | Streamlit |
+| React UI | Vite + React + Tailwind CSS |
+| API Backend | FastAPI + Uvicorn |
 | Vector DB | ChromaDB (persistent, local) |
 | Structured DB | SQLite |
 | Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) |
 | LLM | Groq (`llama-3.3-70b-versatile`) |
-| Charts | Plotly (dark theme) |
+| Charts (Streamlit) | Plotly (dark theme) |
+| Charts (React) | Recharts |
 | Data Source | NVD REST API 2.0 (nvd.nist.gov) |
 
 ---
@@ -33,6 +36,7 @@ A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural
 ## Prerequisites
 
 - Python 3.10+
+- Node.js 18+ (for the React frontend)
 - A free [Groq API key](https://console.groq.com)
 - 4 GB+ RAM recommended
 
@@ -51,7 +55,14 @@ cd cve-assistant
 pip install -r requirements.txt
 ```
 
-**3. Set your Groq API key**
+**3. Install React frontend dependencies**
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+**4. Set your Groq API key**
 
 Create a `.env` file in the project root:
 ```
@@ -59,6 +70,48 @@ GROQ_API_KEY=your_key_here
 ```
 
 > Get a free API key at [console.groq.com](https://console.groq.com). Never commit your `.env` file — it is already excluded by `.gitignore`.
+
+---
+
+## Running the App
+
+### Option A — Quick start (both servers at once)
+
+```bat
+start.bat
+```
+
+Or in PowerShell:
+```powershell
+.\start.ps1
+```
+
+This opens two terminal windows: FastAPI backend on `:8000` and React frontend on `:5173`.
+
+### Option B — Manual (two terminals)
+
+**Terminal 1 — FastAPI backend:**
+```bash
+python -m uvicorn backend.main:app --reload
+```
+
+**Terminal 2 — React frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+Open your browser at **http://localhost:5173**
+
+### Option C — Streamlit only (original UI)
+
+```bash
+streamlit run app.py
+```
+
+Open your browser at **http://localhost:8501**
+
+> The Search and Visualizations pages work without a Groq key. Chat, Patch Advisor, and Stack Analysis require `GROQ_API_KEY` to be set.
 
 ---
 

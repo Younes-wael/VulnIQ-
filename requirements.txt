@@ -11,3 +11,6 @@ pandas
 requests
 tqdm
 rapidfuzz
+fastapi
+uvicorn
+python-multipart

@@ -1,3 +1,5 @@
+start.bat
+start.ps1
 data/raw/
 data/processed/
 db/
@@ -6,3 +8,4 @@ __pycache__/
 .env
 *.sqlite
 .streamlit/
+frontend/node_modules/
