@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { analyzeStack, streamStackReport } from '../lib/api'
 import MetricTile from '../components/MetricTile'
 import SeverityBadge from '../components/SeverityBadge'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 function Spinner() {
   return (
@@ -13,15 +15,51 @@ function Spinner() {
   )
 }
 
-function Chip({ label, variant }) {
-  const cls = variant === 'red'
-    ? 'bg-critical/20 text-red-300 border-critical/30'
-    : 'bg-low/20 text-green-300 border-low/30'
+function Chip({ label, count, variant }) {
+  if (variant === 'red') {
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '0.75rem',
+        padding: '4px 10px',
+        borderRadius: '9999px',
+        border: '1px solid rgba(239,68,68,0.3)',
+        background: 'rgba(239,68,68,0.1)',
+        color: '#fca5a5',
+        fontWeight: 500,
+      }}>
+        ⚠ {label}{count != null ? ` (${count})` : ''}
+      </span>
+    )
+  }
   return (
-    <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium ${cls}`}>
-      {variant === 'red' ? '⚠' : '✓'} {label}
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontSize: '0.75rem',
+      padding: '4px 10px',
+      borderRadius: '9999px',
+      border: '1px solid rgba(34,197,94,0.3)',
+      background: 'rgba(34,197,94,0.1)',
+      color: '#86efac',
+      fontWeight: 500,
+    }}>
+      ✓ {label} · clear
     </span>
   )
+}
+
+const SECTION_LABEL_STYLE = {
+  fontFamily: "'Consolas','Courier New',monospace",
+  fontSize: '0.65rem',
+  color: '#475569',
+  textTransform: 'uppercase',
+  letterSpacing: '0.1em',
+  marginBottom: '10px',
+  display: 'block',
 }
 
 export default function StackAnalysis() {
@@ -33,6 +71,7 @@ export default function StackAnalysis() {
   const [error, setError]             = useState(null)
   const [analysis, setAnalysis]       = useState(null)
   const [techList, setTechList]       = useState([])
+  const [techFilter, setTechFilter]   = useState(null)
 
   const [report, setReport]           = useState('')
   const [reportStreaming, setReportStreaming] = useState(false)
@@ -40,6 +79,7 @@ export default function StackAnalysis() {
   const [reportError, setReportError] = useState(null)
 
   const reportRef    = useRef(null)
+  const cveTableRef  = useRef(null)
   const lastTokenRef = useRef(0)
 
   // Detect stream done via silence
@@ -81,6 +121,7 @@ export default function StackAnalysis() {
     setReportDone(false)
     setLoading(true)
     setTechList(terms)
+    setTechFilter(null)
 
     try {
       const data = await analyzeStack(terms)
@@ -101,6 +142,7 @@ export default function StackAnalysis() {
     setReportError(null)
     setError(null)
     setWarning('')
+    setTechFilter(null)
   }
 
   function startReport() {
@@ -117,15 +159,93 @@ export default function StackAnalysis() {
     )
   }
 
-  const matched = analysis?.technologies_matched ?? []
-  const clean   = analysis?.technologies_clean   ?? []
-  const topCVEs = analysis?.top_cves             ?? []
-  const warnings = analysis?.warnings            ?? []
+  const matched  = analysis?.technologies_matched ?? []
+  const clean    = analysis?.technologies_clean   ?? []
+  const topCVEs  = analysis?.top_cves             ?? []
+  const warnings = analysis?.warnings             ?? []
+
+  // Group topCVEs by matched_tech for TOP RISK TECHNOLOGIES
+  const techGroups = topCVEs.reduce((acc, cve) => {
+    const t = cve.matched_tech
+    if (!acc[t]) acc[t] = { name: t, total: 0, critical: 0, high: 0, maxRisk: 0 }
+    acc[t].total++
+    if ((cve.severity || '').toUpperCase() === 'CRITICAL') acc[t].critical++
+    if ((cve.severity || '').toUpperCase() === 'HIGH') acc[t].high++
+    if (cve.risk_score != null && cve.risk_score > acc[t].maxRisk) acc[t].maxRisk = cve.risk_score
+    return acc
+  }, {})
+
+  const topRiskTechs = Object.values(techGroups)
+    .sort((a, b) => b.critical - a.critical || b.total - a.total)
+    .slice(0, 5)
+
+  // CVE count per tech for chips
+  const cveCountByTech = topCVEs.reduce((acc, cve) => {
+    acc[cve.matched_tech] = (acc[cve.matched_tech] || 0) + 1
+    return acc
+  }, {})
+
+  // Filtered CVEs for the table
+  const displayCVEs = techFilter
+    ? topCVEs.filter(c => c.matched_tech === techFilter)
+    : topCVEs
+
+  const markdownComponents = {
+    h2: ({children}) => (
+      <h2 className="text-indigo-400 font-bold uppercase tracking-widest text-base mt-6 mb-2 pb-1 border-b border-slate-600">{children}</h2>
+    ),
+    h3: ({children}) => (
+      <h3 className="text-slate-200 font-semibold text-sm mt-4 mb-1">{children}</h3>
+    ),
+    p: ({children}) => (
+      <p className="text-slate-300 leading-relaxed mb-3">{children}</p>
+    ),
+    ol: ({children}) => (
+      <ol className="list-decimal list-outside ml-5 space-y-2 text-slate-300 mb-4">{children}</ol>
+    ),
+    ul: ({children}) => (
+      <ul className="list-disc list-outside ml-5 space-y-1 text-slate-300 mb-4">{children}</ul>
+    ),
+    li: ({children}) => (
+      <li className="text-slate-300 leading-relaxed pl-1">{children}</li>
+    ),
+    strong: ({children}) => (
+      <strong className="text-white font-semibold">{children}</strong>
+    ),
+    code: ({children}) => (
+      <code className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
+    ),
+    table: ({children}) => (
+      <div className="overflow-x-auto my-4 rounded-lg border border-slate-600">
+        <table className="w-full text-sm text-left">{children}</table>
+      </div>
+    ),
+    thead: ({children}) => (
+      <thead className="bg-slate-700/80 text-indigo-300 text-xs uppercase tracking-wider">{children}</thead>
+    ),
+    tbody: ({children}) => (
+      <tbody className="divide-y divide-slate-700/50">{children}</tbody>
+    ),
+    tr: ({children}) => (
+      <tr className="hover:bg-slate-700/30 transition-colors">{children}</tr>
+    ),
+    th: ({children}) => (
+      <th className="px-4 py-3 font-semibold text-slate-200">{children}</th>
+    ),
+    td: ({children}) => (
+      <td className="px-4 py-3 text-slate-300">{children}</td>
+    ),
+    blockquote: ({children}) => (
+      <blockquote className="border-l-4 border-indigo-500 pl-4 my-3 text-slate-400 italic bg-slate-800/50 py-2 rounded-r">{children}</blockquote>
+    ),
+    hr: () => <hr className="border-slate-600 my-5" />,
+  }
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6 pb-8 animate-fadein">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">🧱 Tech Stack Analysis</h1>
+        <div style={{ width: '32px', height: '3px', borderRadius: '2px', background: '#ef4444', marginBottom: '8px', display: 'block' }} />
+        <h1 className="text-2xl font-bold text-slate-100">Tech Stack Analysis</h1>
         <p className="text-slate-400 text-sm mt-1">
           Enter your technology stack to get a personalised CVE exposure report
         </p>
@@ -141,10 +261,19 @@ export default function StackAnalysis() {
           disabled={loading}
           className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 font-mono focus:outline-none focus:border-brand disabled:opacity-50 resize-none leading-relaxed"
         />
-        <p className="text-xs text-slate-500 leading-relaxed">
-          💡 Use general names — <code className="text-slate-400">openssl</code> not <code className="text-slate-400">OpenSSL 3.0.1</code>.
-          Avoid single letters and very broad names like <code className="text-slate-400">microsoft</code>.
-        </p>
+        <div>
+          <p style={SECTION_LABEL_STYLE}>Tips</p>
+          {[
+            'Use general package names: openssl, django, redis',
+            'Avoid version strings like OpenSSL 3.0.1',
+            'Avoid vague names like microsoft or linux',
+          ].map(tip => (
+            <div key={tip} className="flex items-start gap-1.5" style={{ lineHeight: 1.6 }}>
+              <span style={{ color: '#3b82f6', fontSize: '0.78rem', flexShrink: 0 }}>›</span>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{tip}</span>
+            </div>
+          ))}
+        </div>
 
         {warning && (
           <p className="text-xs text-medium bg-medium/10 border border-medium/30 px-3 py-2 rounded-lg">{warning}</p>
@@ -165,7 +294,7 @@ export default function StackAnalysis() {
               onClick={handleReset}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-border bg-surface hover:bg-white/5 text-slate-400 text-sm transition-colors"
             >
-              🔄 Analyze New Stack
+              Analyze New Stack
             </button>
           )}
         </div>
@@ -203,6 +332,93 @@ export default function StackAnalysis() {
             />
           </div>
 
+          {/* TOP RISK TECHNOLOGIES */}
+          {topRiskTechs.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3">
+              <p style={SECTION_LABEL_STYLE}>Top Risk Technologies</p>
+              {topRiskTechs.map((tech, i) => {
+                const isActive = techFilter === tech.name
+                return (
+                  <div
+                    key={tech.name}
+                    onClick={() => {
+                      if (isActive) {
+                        setTechFilter(null)
+                      } else {
+                        setTechFilter(tech.name)
+                        cveTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 0',
+                      borderBottom: i < topRiskTechs.length - 1 ? '1px solid #1e293b' : 'none',
+                      cursor: 'pointer',
+                      borderRadius: isActive ? '6px' : undefined,
+                      background: isActive ? 'rgba(59,130,246,0.05)' : 'transparent',
+                      paddingLeft: isActive ? '8px' : '0',
+                      paddingRight: isActive ? '8px' : '0',
+                      transition: 'background 0.15s, padding 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#0f172a' }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <span style={{
+                      fontFamily: "'Consolas','Courier New',monospace",
+                      fontSize: '0.9rem',
+                      fontWeight: 700,
+                      color: isActive ? '#93c5fd' : '#e2e8f0',
+                      minWidth: '100px',
+                    }}>
+                      {tech.name}
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {tech.critical > 0 && (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(239,68,68,0.15)',
+                          border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#fca5a5',
+                          fontWeight: 600,
+                        }}>
+                          {tech.critical} critical
+                        </span>
+                      )}
+                      {tech.high > 0 && (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(249,115,22,0.15)',
+                          border: '1px solid rgba(249,115,22,0.3)',
+                          color: '#fdba74',
+                          fontWeight: 600,
+                        }}>
+                          {tech.high} high
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#475569', flexShrink: 0 }}>
+                      risk {tech.maxRisk.toFixed(2)}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: isActive ? '#3b82f6' : '#334155' }}>
+                      {isActive ? '× clear' : '→'}
+                    </span>
+                  </div>
+                )
+              })}
+              {techFilter && (
+                <p style={{ fontSize: '0.72rem', color: '#3b82f6', marginTop: '2px' }}>
+                  Filtering CVE table by <strong>{techFilter}</strong> — click row again to clear
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Card 2 — Tech status */}
           <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4">
             <p className="text-sm font-semibold text-slate-100">Technology Status</p>
@@ -215,16 +431,23 @@ export default function StackAnalysis() {
 
             {matched.length > 0 && (
               <div>
-                <p className="text-xs text-slate-400 mb-2 font-medium">⚠️ Affected — CVEs found</p>
+                <p className="text-xs text-slate-400 mb-2 font-medium">Affected — CVEs found</p>
                 <div className="flex flex-wrap gap-2">
-                  {matched.map(t => <Chip key={t} label={t} variant="red" />)}
+                  {matched.map(t => (
+                    <Chip
+                      key={t}
+                      label={t}
+                      count={cveCountByTech[t] ?? null}
+                      variant="red"
+                    />
+                  ))}
                 </div>
               </div>
             )}
 
             {clean.length > 0 && (
               <div>
-                <p className="text-xs text-slate-400 mb-2 font-medium">✅ Clear — No matches in this dataset</p>
+                <p className="text-xs text-slate-400 mb-2 font-medium">Clear — No matches in this dataset</p>
                 <div className="flex flex-wrap gap-2">
                   {clean.map(t => <Chip key={t} label={t} variant="green" />)}
                 </div>
@@ -237,10 +460,24 @@ export default function StackAnalysis() {
           </div>
 
           {/* Card 3 — CVE table */}
-          <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4">
-            <p className="text-sm font-semibold text-slate-100">Top CVEs by Risk Score</p>
+          <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4" ref={cveTableRef}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-100">Top CVEs by Risk Score</p>
+              {techFilter && (
+                <span style={{
+                  fontSize: '0.7rem',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(59,130,246,0.1)',
+                  border: '1px solid rgba(59,130,246,0.3)',
+                  color: '#93c5fd',
+                }}>
+                  Filtered: {techFilter}
+                </span>
+              )}
+            </div>
 
-            {topCVEs.length === 0 ? (
+            {displayCVEs.length === 0 ? (
               <p className="text-sm text-slate-400">
                 No CVEs found for your stack in this dataset. Try different technology names.
               </p>
@@ -255,7 +492,7 @@ export default function StackAnalysis() {
                     </tr>
                   </thead>
                   <tbody>
-                    {topCVEs.map(cve => (
+                    {displayCVEs.map(cve => (
                       <tr key={cve.cve_id} className="border-b border-border/50 hover:bg-white/5 transition-colors">
                         <td className="py-2 pr-4 whitespace-nowrap">
                           <button
@@ -292,7 +529,7 @@ export default function StackAnalysis() {
           {/* Card 4 — AI report */}
           <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4" ref={reportRef}>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-100">🤖 AI Risk Report</p>
+              <p className="text-sm font-semibold text-slate-100">AI Risk Report</p>
               {!reportStreaming && !report && (
                 <button
                   onClick={startReport}
@@ -323,9 +560,11 @@ export default function StackAnalysis() {
             )}
 
             {report && (
-              <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap font-mono bg-surface rounded-xl p-4 border border-border">
-                {report}
-              </p>
+              <div className="bg-slate-900 rounded-xl p-6 border border-slate-700 text-sm leading-relaxed">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {report}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         </>

@@ -67,7 +67,7 @@ function readSSEStream(response, onToken, onError, onDone) {
         if (payload.startsWith('[ERROR] ')) {
           onError && onError(payload.slice(8))
         } else {
-          onToken(payload)
+          onToken(payload.replace(/\\n/g, '\n'))
         }
       }
       pump()
@@ -113,7 +113,7 @@ export async function streamChat(message, history = [], filters = {}, onToken, o
           const ids = payload.slice(10).split(',').map((s) => s.trim())
           onSources && onSources(ids)
         } else {
-          onToken(payload)
+          onToken(payload.replace(/\\n/g, '\n'))
         }
       }
       pump()

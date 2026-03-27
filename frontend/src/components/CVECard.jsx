@@ -1,14 +1,17 @@
 import SeverityBadge from './SeverityBadge'
 
+const ACCENT = {
+  CRITICAL: '#ef4444',
+  HIGH:     '#f97316',
+  MEDIUM:   '#eab308',
+  LOW:      '#22c55e',
+}
+
 export default function CVECard({ cve, onClick }) {
-  const {
-    cve_id,
-    severity,
-    cvss_score,
-    description,
-    vendors,
-    published_date,
-  } = cve
+  const { cve_id, severity, cvss_score, description, vendors, published_date } = cve
+
+  const upper = (severity || '').toUpperCase()
+  const accentColor = ACCENT[upper] ?? '#334155'
 
   const vendorText = Array.isArray(vendors)
     ? vendors.slice(0, 3).join(', ')
@@ -19,13 +22,29 @@ export default function CVECard({ cve, onClick }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-card border border-border rounded-xl p-4 flex flex-col gap-2 transition-colors ${
-        onClick ? 'cursor-pointer hover:border-brand/60 hover:bg-white/5' : ''
-      }`}
+      className="bg-card border border-border rounded-xl p-4 flex flex-col gap-2 transition-all"
+      style={{
+        borderLeft: `3px solid ${accentColor}`,
+        cursor: onClick ? 'pointer' : 'default',
+      }}
+      onMouseEnter={e => {
+        if (!onClick) return
+        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.boxShadow = `0 4px 20px ${accentColor}1a`
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = ''
+        e.currentTarget.style.boxShadow = ''
+      }}
     >
       {/* Top row */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="font-bold text-brand text-sm">{cve_id}</span>
+        <span
+          className="font-bold text-sm"
+          style={{ fontFamily: "'Consolas','Courier New',monospace", color: '#3b82f6' }}
+        >
+          {cve_id}
+        </span>
         <SeverityBadge severity={severity} />
       </div>
 

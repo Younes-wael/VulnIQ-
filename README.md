@@ -1,6 +1,8 @@
-# CVE Security Assistant
+# VulnLens — Vulnerability Intelligence Platform
 
-A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural language questions about CVEs, explore security trends through interactive visualizations, and receive AI-driven patch recommendations — all grounded in real NVD data.
+A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural language questions about CVEs, explore security trends through interactive visualizations, receive AI-driven patch recommendations, and analyze your entire tech stack — all grounded in real NVD data, no hallucinated CVE IDs.
+
+A standalone marketing page is available at [`landing.html`](landing.html) — open it directly in any browser, no build step needed.
 
 ---
 
@@ -8,11 +10,12 @@ A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural
 
 | Page | Description |
 |------|-------------|
-| **Chat** | Ask natural language questions about CVEs and receive answers grounded in NVD data via RAG |
-| **Search** | Filter and browse vulnerabilities by severity, year, vendor, product, and keyword |
-| **Visualizations** | Interactive charts for CVE trends, severity distributions, and vendor impact |
-| **Patch Advisor** | Structured risk assessments with AI-generated remediation recommendations |
-| **Stack Analysis** | Input your tech stack and get a personalised CVE exposure report — find which vulnerabilities may affect you specifically |
+| **Home** | Live stats, recent critical CVEs, quick-action shortcuts to every tool |
+| **Chat** | RAG-powered Q&A with streaming responses, source citations, and severity/vendor filters |
+| **Search** | Filter 200k+ CVEs by severity, year, vendor, CVSS score, and keyword — with inline result rows and removable filter pills |
+| **Dashboard** | Interactive Recharts visualizations: CVE trends, severity distributions, top vendors |
+| **Patch Advisor** | Enter any CVE ID to get structured risk data and AI-generated remediation advice (streamed) |
+| **Stack Analysis** | Input your tech stack and get CVE exposure metrics, top-risk technology breakdown, and a full AI risk report (streamed) |
 
 ---
 
@@ -20,16 +23,18 @@ A RAG-powered vulnerability intelligence platform built on NVD data. Ask natural
 
 | Component | Technology |
 |-----------|------------|
-| Streamlit UI | Streamlit |
-| React UI | Vite + React + Tailwind CSS |
+| React UI | Vite + React 18 + React Router + Tailwind CSS |
+| Markdown rendering | react-markdown v9 + remark-gfm (tables, GFM) |
+| Charts | Recharts |
 | API Backend | FastAPI + Uvicorn |
+| Streaming | SSE (Server-Sent Events) via FastAPI `StreamingResponse` |
 | Vector DB | ChromaDB (persistent, local) |
 | Structured DB | SQLite |
 | Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) |
 | LLM | Groq (`llama-3.3-70b-versatile`) |
-| Charts (Streamlit) | Plotly (dark theme) |
-| Charts (React) | Recharts |
 | Data Source | NVD REST API 2.0 (nvd.nist.gov) |
+| EPSS scores | FIRST.org API |
+| Legacy UI | Streamlit (still functional via `streamlit run app.py`) |
 
 ---
 
@@ -111,43 +116,38 @@ streamlit run app.py
 
 Open your browser at **http://localhost:8501**
 
-> The Search and Visualizations pages work without a Groq key. Chat, Patch Advisor, and Stack Analysis require `GROQ_API_KEY` to be set.
+> The Search and Dashboard pages work without a Groq key. Chat, Patch Advisor, and Stack Analysis require `GROQ_API_KEY` to be set.
 
 ---
 
 ## Configuration
 
-All settings are in [`config.py`](config.py). The most important ones:
+All settings are in [`config.py`](config.py):
 
 ```python
-GROQ_MODEL          = "llama-3.3-70b-versatile"  # LLM used for chat and patch advice
+GROQ_MODEL          = "llama-3.3-70b-versatile"  # LLM for chat, advisor, and stack reports
 PIPELINE_START_YEAR = 2023                         # First year to download/process
-PIPELINE_END_YEAR   = 2023                         # Last year to download/process (inclusive)
+PIPELINE_END_YEAR   = 2023                         # Last year (inclusive)
 ```
 
-> **Tip:** For quick testing, keep the year range to a single year (e.g. 2023 only).
-> For the full dataset, set `PIPELINE_START_YEAR = 2015` and `PIPELINE_END_YEAR = 2026`.
+> **Tip:** For quick testing, keep the year range to a single year. For the full dataset, set `PIPELINE_START_YEAR = 2015` and `PIPELINE_END_YEAR = 2026`.
 
 ---
 
 ## Running the Data Pipeline
 
-Run the full pipeline with a single command:
-
 ```bash
 python run_pipeline.py
 ```
 
-This executes all four steps in order:
+This runs all four steps in order:
 
 | Step | Script | Description |
 |------|--------|-------------|
-| 1 | `pipeline/download.py` | Fetches CVE data from the NVD REST API 2.0 for each configured year |
+| 1 | `pipeline/download.py` | Fetches CVE data from NVD REST API 2.0 per year |
 | 2 | `pipeline/parse.py` | Parses and cleans raw JSON into structured CVE records |
-| 3 | `pipeline/ingest.py` | Populates SQLite with structured CVE data |
+| 3 | `pipeline/ingest.py` | Populates SQLite with structured data |
 | 4 | `pipeline/embed.py` | Generates vector embeddings and stores them in ChromaDB |
-
-> **Note:** Steps 1–3 are fast. Step 4 (embedding) is slower on first run but skips CVEs that are already embedded on subsequent runs.
 
 You can also run individual steps:
 ```bash
@@ -157,17 +157,7 @@ python -m pipeline.ingest
 python -m pipeline.embed
 ```
 
----
-
-## Running the App
-
-```bash
-streamlit run app.py
-```
-
-Open your browser at **http://localhost:8501**
-
-> The Search and Visualizations pages work without a Groq key. Chat and Patch Advisor require `GROQ_API_KEY` to be set.
+> Step 4 (embedding) is slower on first run but skips already-embedded CVEs on subsequent runs.
 
 ---
 
@@ -175,46 +165,70 @@ Open your browser at **http://localhost:8501**
 
 ```
 cve-assistant/
-├── app.py                    # Streamlit entry point and landing page
-├── config.py                 # All settings: model names, paths, year range
+├── landing.html              # Standalone marketing page (no build needed)
+├── config.py                 # All settings: model, paths, year range
 ├── run_pipeline.py           # Runs the full ETL pipeline in one command
 ├── requirements.txt          # Python dependencies
 ├── .env                      # API keys (not committed)
 │
-├── pipeline/
-│   ├── download.py           # Fetches CVE data from NVD REST API 2.0
-│   ├── parse.py              # Cleans and structures raw CVE JSON
-│   ├── ingest.py             # Populates SQLite database
-│   └── embed.py              # Generates and stores vector embeddings
+├── backend/
+│   ├── main.py               # FastAPI app entry point
+│   └── routers/
+│       ├── chat.py           # /api/chat — RAG chat with SSE streaming
+│       ├── search.py         # /api/search — structured CVE search
+│       ├── advisor.py        # /api/advisory — Patch Advisor (SSE streaming)
+│       ├── stack.py          # /api/stack — stack analysis + AI report (SSE streaming)
+│       ├── stats.py          # /api/stats — aggregate counts and averages
+│       └── trends.py         # /api/trends — time-series data for Dashboard charts
+│
+├── frontend/
+│   ├── index.html
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Sidebar.jsx   # Navigation with SVG icons and colored accent bars
+│   │   │   ├── Layout.jsx    # App shell with mobile hamburger menu
+│   │   │   ├── CVECard.jsx   # Severity-colored CVE card with hover effect
+│   │   │   ├── SeverityBadge.jsx  # Inline severity chip (CRITICAL/HIGH/MEDIUM/LOW)
+│   │   │   └── MetricTile.jsx     # Stat tile with top accent line
+│   │   ├── pages/
+│   │   │   ├── Home.jsx      # Hero, live stats, recent critical CVEs, quick actions
+│   │   │   ├── Chat.jsx      # Streaming chat with welcome state and example cards
+│   │   │   ├── Search.jsx    # CVE search with inline rows and removable filter pills
+│   │   │   ├── Dashboard.jsx # Recharts visualizations
+│   │   │   ├── Advisor.jsx   # CVE lookup with streamed AI advice (ReactMarkdown)
+│   │   │   └── StackAnalysis.jsx  # Stack input, top risk tech breakdown, streamed AI report
+│   │   └── lib/
+│   │       └── api.js        # All API calls and SSE stream readers
+│   └── package.json
 │
 ├── core/
-│   ├── retriever.py          # Semantic search (ChromaDB) and exact lookup (SQLite)
-│   ├── llm.py                # Groq connection and streaming response handling
-│   └── advisor.py            # Risk scoring and related CVE analysis
+│   ├── retriever.py          # ChromaDB semantic search and SQLite exact lookup
+│   ├── llm.py                # Groq streaming, prompt builders for chat/advisor/stack
+│   └── advisor.py            # Risk scoring, EPSS lookup, related CVE analysis
 │
-├── pages/
-│   ├── 1_Chat.py             # RAG-powered natural language Q&A
-│   ├── 2_Search.py           # Structured CVE search and filtering
-│   ├── 3_Visualizations.py   # Interactive Plotly dashboard
-│   ├── 4_Patch_Advisor.py    # AI-powered patch recommendations
-│   └── 5_Stack_Analysis.py   # Tech stack matcher and AI exposure report
+├── pipeline/
+│   ├── download.py           # Fetches raw CVE JSON from NVD API 2.0
+│   ├── parse.py              # Cleans and structures raw data
+│   ├── ingest.py             # Loads structured data into SQLite
+│   └── embed.py              # Embeds CVE text and stores in ChromaDB
 │
-├── data/
-│   ├── raw/                  # Raw JSON responses from NVD API (per year)
-│   └── processed/            # Cleaned CVE records ready for ingestion
+├── pages/                    # Streamlit pages (legacy UI)
+│   ├── 1_Chat.py
+│   ├── 2_Search.py
+│   ├── 3_Visualizations.py
+│   ├── 4_Patch_Advisor.py
+│   └── 5_Stack_Analysis.py
 │
 └── db/
-    ├── cve.sqlite            # Structured CVE database (fast filtering and charts)
-    └── chroma/               # ChromaDB vector store (semantic search)
+    ├── cve.sqlite            # Structured CVE database
+    └── chroma/               # ChromaDB vector store
 ```
 
 ---
 
 ## Stack Analysis
 
-The Stack Analysis page lets you input the technologies your project uses (one per line) and automatically matches them against the local NVD dataset to find potentially relevant CVEs.
-
-Example input:
+Input your technologies one per line:
 
 ```
 django
@@ -224,16 +238,17 @@ postgresql
 redis
 ```
 
-The page returns:
-- CVE matches per technology with severity and CVSS scores
-- EPSS exploitation probability scores from the FIRST.org API
-- A composite risk score per CVE (CVSS + EPSS + recency)
-- An AI-generated report with cautious, version-aware advice
+Returns:
+- CVE match counts per technology with severity breakdown
+- Top-risk technology ranking (sorted by critical CVE count)
+- EPSS exploitation probability scores from FIRST.org
+- Composite risk score per CVE (CVSS × weight + EPSS × weight + recency)
+- AI-generated risk report streamed in real-time with markdown formatting
 
-Known limitations:
-- Very broad terms like `microsoft` or `java` may match too many rows. Use specific product names instead (e.g. `exchange`, `iis`, `spring`)
-- Terms shorter than 3 characters are automatically skipped
-- Results are potential matches from a limited local dataset only. Always verify against official advisories and use `pip audit`, `trivy`, or `snyk` for production environments.
+**Known limitations:**
+- Broad terms like `microsoft` or `java` match too many rows — use specific names (`exchange`, `spring`, `iis`)
+- Terms shorter than 3 characters are skipped automatically
+- Results are potential matches from a local dataset only — verify against official advisories and use `pip audit`, `trivy`, or `snyk` for production
 
 ---
 
@@ -241,4 +256,4 @@ Known limitations:
 
 **National Vulnerability Database (NVD)** — [nvd.nist.gov](https://nvd.nist.gov)
 
-Data is fetched via the NVD REST API 2.0 and is free and publicly available under the [NVD terms of use](https://nvd.nist.gov/developers/terms-of-use).
+Data is fetched via the NVD REST API 2.0 and is freely available under the [NVD terms of use](https://nvd.nist.gov/developers/terms-of-use). This project is not affiliated with NIST.

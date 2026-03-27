@@ -31,7 +31,7 @@ async def _sse_advice(cve_id: str) -> AsyncGenerator[str, None]:
             if token.startswith("Error:"):
                 yield f"data: [ERROR] {token}\n\n"
                 return
-            yield f"data: {token}\n\n"
+            yield f"data: {token.replace(chr(10), '\\n')}\n\n"
     except Exception as exc:
         yield f"data: [ERROR] {exc}\n\n"
 

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchCVEs } from '../lib/api'
-import CVECard from '../components/CVECard'
 import SeverityBadge from '../components/SeverityBadge'
 
 const SEV_OPTIONS = [
@@ -10,6 +9,13 @@ const SEV_OPTIONS = [
   { label: 'MEDIUM',   color: 'bg-medium' },
   { label: 'LOW',      color: 'bg-low' },
 ]
+
+const SEV_ACCENT = {
+  CRITICAL: '#ef4444',
+  HIGH:     '#f97316',
+  MEDIUM:   '#eab308',
+  LOW:      '#22c55e',
+}
 
 const EMPTY_FILTERS = {
   severities: [],
@@ -31,6 +37,116 @@ function SkeletonCard() {
       <div className="h-3 w-48 bg-slate-700 rounded" />
       <div className="h-3 w-full bg-slate-700 rounded" />
       <div className="h-3 w-4/5 bg-slate-700 rounded" />
+    </div>
+  )
+}
+
+function ResultRow({ cve, onClick }) {
+  const upper = (cve.severity || '').toUpperCase()
+  const accentColor = SEV_ACCENT[upper] ?? '#334155'
+
+  const vendorList = Array.isArray(cve.vendors)
+    ? cve.vendors
+    : (cve.vendors || '').split(',').map(v => v.trim()).filter(Boolean)
+
+  const productList = Array.isArray(cve.products)
+    ? cve.products
+    : (cve.products || '').split(',').map(p => p.trim()).filter(Boolean)
+
+  const hasBottom = vendorList.length > 0 || productList.length > 0
+  const displayVendors = vendorList.slice(0, 3)
+  const extraVendors = vendorList.length - 3
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: '#1e293b',
+        borderLeft: `3px solid ${accentColor}`,
+        borderRadius: '8px',
+        padding: '14px 16px',
+        cursor: 'pointer',
+        transition: 'background 0.15s',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = '#263548'}
+      onMouseLeave={e => e.currentTarget.style.background = '#1e293b'}
+    >
+      {/* Top line */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span style={{
+          fontFamily: "'Consolas','Courier New',monospace",
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          color: '#3b82f6',
+          flexShrink: 0,
+        }}>
+          {cve.cve_id}
+        </span>
+        <SeverityBadge severity={cve.severity} />
+        <div className="flex items-center gap-3 ml-auto text-xs text-slate-500 flex-wrap">
+          {cve.cvss_score != null && (
+            <span>CVSS <span style={{ color: '#cbd5e1', fontWeight: 500 }}>{Number(cve.cvss_score).toFixed(1)}</span></span>
+          )}
+          {cve.published_date && (
+            <span>{cve.published_date.slice(0, 10)}</span>
+          )}
+          {vendorList[0] && (
+            <span style={{
+              background: 'rgba(6,182,212,0.1)',
+              color: '#22d3ee',
+              border: '1px solid rgba(6,182,212,0.2)',
+              borderRadius: '4px',
+              padding: '1px 8px',
+              fontFamily: "'Consolas','Courier New',monospace",
+              fontSize: '0.7rem',
+            }}>
+              {vendorList[0]}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Description */}
+      {cve.description && (
+        <p style={{
+          fontSize: '0.82rem',
+          color: '#94a3b8',
+          lineHeight: 1.5,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}>
+          {cve.description}
+        </p>
+      )}
+
+      {/* Bottom line */}
+      {hasBottom && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex flex-wrap gap-1">
+            {displayVendors.map(v => (
+              <span key={v} style={{
+                fontSize: '0.7rem',
+                color: '#64748b',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
+                borderRadius: '4px',
+                padding: '1px 7px',
+              }}>{v}</span>
+            ))}
+            {extraVendors > 0 && (
+              <span style={{ fontSize: '0.7rem', color: '#475569' }}>+{extraVendors} more</span>
+            )}
+          </div>
+          <span style={{ fontSize: '0.75rem', color: '#3b82f6', flexShrink: 0 }}>
+            → Patch Advisor
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -124,7 +240,7 @@ function DetailDrawer({ cve, onClose }) {
             onClick={() => { onClose(); navigate(`/advisor?cve=${cve.cve_id}`) }}
             className="w-full py-2 rounded-xl bg-brand hover:bg-brand/80 text-white text-sm font-medium transition-colors"
           >
-            🛡️ View in Patch Advisor
+            View in Patch Advisor
           </button>
           <a
             href={`https://nvd.nist.gov/vuln/detail/${cve.cve_id}`}
@@ -193,12 +309,70 @@ export default function Search() {
     }))
   }
 
+  const removeFilter = (updater) => {
+    const newF = { ...filters, ...updater }
+    setFilters(newF)
+    runSearch(newF)
+  }
+
+  // Build active filter pills for display
+  const activePills = []
+  if (filters.severities.length > 0) {
+    filters.severities.forEach(s => {
+      activePills.push({
+        key: `sev-${s}`,
+        label: s,
+        color: SEV_ACCENT[s] ?? '#475569',
+        onRemove: () => removeFilter({ severities: filters.severities.filter(x => x !== s) }),
+      })
+    })
+  }
+  if (filters.year_from || filters.year_to) {
+    const label = filters.year_from && filters.year_to
+      ? `${filters.year_from}–${filters.year_to}`
+      : filters.year_from ? `from ${filters.year_from}` : `to ${filters.year_to}`
+    activePills.push({
+      key: 'year',
+      label: `Year: ${label}`,
+      color: '#475569',
+      onRemove: () => removeFilter({ year_from: '', year_to: '' }),
+    })
+  }
+  if (filters.vendor.trim()) {
+    activePills.push({
+      key: 'vendor',
+      label: `Vendor: ${filters.vendor.trim()}`,
+      color: '#475569',
+      onRemove: () => removeFilter({ vendor: '' }),
+    })
+  }
+  if (filters.cvss_min || filters.cvss_max) {
+    const label = filters.cvss_min && filters.cvss_max
+      ? `CVSS ${filters.cvss_min}–${filters.cvss_max}`
+      : filters.cvss_min ? `CVSS ≥${filters.cvss_min}` : `CVSS ≤${filters.cvss_max}`
+    activePills.push({
+      key: 'cvss',
+      label,
+      color: '#475569',
+      onRemove: () => removeFilter({ cvss_min: '', cvss_max: '' }),
+    })
+  }
+  if (filters.keyword.trim()) {
+    activePills.push({
+      key: 'keyword',
+      label: `"${filters.keyword.trim()}"`,
+      color: '#475569',
+      onRemove: () => removeFilter({ keyword: '' }),
+    })
+  }
+
   return (
     <div className="flex gap-0 lg:gap-6 h-full relative animate-fadein">
 
       {/* ── Filters panel ── */}
       <aside className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-4">
-        <h2 className="text-base font-semibold text-slate-100">🔎 Search & Filter</h2>
+        <div style={{ width: '32px', height: '3px', borderRadius: '2px', background: '#06b6d4', marginBottom: '8px', display: 'block' }} />
+        <h2 className="text-base font-semibold text-slate-100">Search & Filter</h2>
 
         <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-4">
 
@@ -335,21 +509,6 @@ export default function Search() {
           </button>
         </div>
 
-        {/* Header / status */}
-        {results !== null && !loading && (
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <p className="text-sm text-slate-400">
-              <span className="font-semibold text-slate-200">{results.length}</span> result{results.length !== 1 ? 's' : ''}
-              {elapsed != null && <span className="ml-1">in {elapsed.toFixed(1)}ms</span>}
-            </p>
-            {results.length === 100 && (
-              <p className="text-xs text-medium bg-medium/10 border border-medium/30 px-3 py-1 rounded-full">
-                Showing first 100 results — refine your filters to see more
-              </p>
-            )}
-          </div>
-        )}
-
         {error && (
           <div className="bg-critical/10 border border-critical/40 rounded-xl px-4 py-3 text-sm text-red-300">
             {error}
@@ -363,31 +522,168 @@ export default function Search() {
           </div>
         )}
 
-        {/* Results */}
+        {/* No results */}
         {!loading && results !== null && results.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-2">
-            <span className="text-3xl">🔍</span>
             <p className="text-sm">No results. Try adjusting your filters.</p>
           </div>
         )}
 
+        {/* Results with filter summary bar */}
         {!loading && results !== null && results.length > 0 && (
-          <div className="flex flex-col gap-3 overflow-y-auto">
-            {results.map(cve => (
-              <CVECard
-                key={cve.cve_id}
-                cve={cve}
-                onClick={() => setSelectedCVE(cve)}
-              />
-            ))}
-          </div>
+          <>
+            {/* Filter summary bar */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-sm text-slate-400">
+                Showing <span className="font-semibold text-slate-200">{results.length}</span> result{results.length !== 1 ? 's' : ''}
+                {elapsed != null && <span className="ml-1 text-slate-500">· {elapsed.toFixed(1)}ms</span>}
+              </p>
+              {activePills.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {activePills.map(pill => (
+                    <span
+                      key={pill.key}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '0.7rem',
+                        fontFamily: "'Consolas','Courier New',monospace",
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        background: pill.color + '1a',
+                        border: `1px solid ${pill.color}44`,
+                        color: '#94a3b8',
+                      }}
+                    >
+                      {pill.label}
+                      <button
+                        onClick={pill.onRemove}
+                        style={{ color: '#64748b', lineHeight: 1, cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: '0.75rem' }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#cbd5e1'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {results.length === 100 && (
+              <p className="text-xs text-medium bg-medium/10 border border-medium/30 px-3 py-1.5 rounded-lg">
+                Showing first 100 results — refine your filters to see more
+              </p>
+            )}
+
+            {/* Result rows */}
+            <div className="flex flex-col overflow-y-auto" style={{ gap: '8px' }}>
+              {results.map(cve => (
+                <ResultRow
+                  key={cve.cve_id}
+                  cve={cve}
+                  onClick={() => setSelectedCVE(cve)}
+                />
+              ))}
+            </div>
+          </>
         )}
 
         {/* Not yet searched */}
         {!loading && results === null && !error && (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-2">
-            <span className="text-3xl">🔎</span>
-            <p className="text-sm">Set your filters and press Search.</p>
+          <div className="flex flex-col gap-5 py-10 max-w-sm">
+            {/* Helper text */}
+            <div>
+              <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                Search the NVD database
+              </p>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', maxWidth: '340px', lineHeight: 1.5 }}>
+                Filter by severity, vendor, year, CVSS score, or keyword to find relevant vulnerabilities
+              </p>
+            </div>
+
+            <div style={{ height: '1px', background: '#1e293b' }} />
+
+            {/* Suggestion chips */}
+            <div>
+              <p style={{
+                fontFamily: "'Consolas','Courier New',monospace",
+                fontSize: '0.65rem',
+                color: '#475569',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                marginBottom: '10px',
+              }}>Try searching for</p>
+              <div className="flex flex-wrap gap-2">
+                {['openssl', 'apache', 'nginx', 'log4j'].map(term => (
+                  <button
+                    key={term}
+                    onClick={() => {
+                      const newF = { ...filters, keyword: term }
+                      setFilters(newF)
+                      runSearch(newF)
+                    }}
+                    style={{
+                      background: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      padding: '4px 12px',
+                      fontSize: '0.8rem',
+                      fontFamily: "'Consolas','Courier New',monospace",
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.15s, color 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#e2e8f0' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#94a3b8' }}
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ height: '1px', background: '#1e293b' }} />
+
+            {/* Quick filters */}
+            <div>
+              <p style={{
+                fontFamily: "'Consolas','Courier New',monospace",
+                fontSize: '0.65rem',
+                color: '#475569',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                marginBottom: '10px',
+              }}>Quick filters</p>
+              <div className="flex flex-col gap-2">
+                {[
+                  {
+                    label: 'Critical CVEs (2023–2024)',
+                    apply: { ...EMPTY_FILTERS, severities: ['CRITICAL'], year_from: '2023', year_to: '2024' },
+                  },
+                  {
+                    label: 'High severity Apache vulnerabilities',
+                    apply: { ...EMPTY_FILTERS, severities: ['HIGH'], vendor: 'apache' },
+                  },
+                  {
+                    label: 'Recent CVSS 9.0+ CVEs',
+                    apply: { ...EMPTY_FILTERS, cvss_min: '9.0', year_from: '2022' },
+                  },
+                ].map(({ label, apply }) => (
+                  <button
+                    key={label}
+                    onClick={() => { setFilters(apply); runSearch(apply) }}
+                    className="flex items-center gap-2 text-left group"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0' }}
+                    onMouseEnter={e => { e.currentTarget.querySelector('.arrow').style.color = '#3b82f6'; e.currentTarget.querySelector('.lbl').style.color = '#e2e8f0' }}
+                    onMouseLeave={e => { e.currentTarget.querySelector('.arrow').style.color = '#475569'; e.currentTarget.querySelector('.lbl').style.color = '#94a3b8' }}
+                  >
+                    <span className="arrow" style={{ color: '#475569', fontSize: '0.82rem', transition: 'color 0.15s' }}>→</span>
+                    <span className="lbl" style={{ fontSize: '0.82rem', color: '#94a3b8', transition: 'color 0.15s' }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

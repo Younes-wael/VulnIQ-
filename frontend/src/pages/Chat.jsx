@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { streamChat } from '../lib/api'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
-const EXAMPLES = [
-  'What are the most critical OpenSSL vulnerabilities?',
-  'Explain CVE-2021-44228',
-  'Which Django CVEs involve SQL injection?',
+const WELCOME_CARDS = [
+  { label: 'CRITICAL RESEARCH', question: 'What are the most critical OpenSSL vulnerabilities?' },
+  { label: 'CVE LOOKUP',        question: 'Explain CVE-2021-44228 Log4Shell' },
+  { label: 'VENDOR ANALYSIS',   question: 'Which Django CVEs involve SQL injection?' },
 ]
 
 const SEV_OPTIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
@@ -170,27 +172,125 @@ export default function Chat() {
 
   const SEV_COLORS = { CRITICAL: 'text-critical', HIGH: 'text-high', MEDIUM: 'text-medium', LOW: 'text-low' }
 
+  const markdownComponents = {
+    h2: ({children}) => (
+      <h2 className="text-indigo-400 font-bold uppercase tracking-widest text-base mt-6 mb-2 pb-1 border-b border-slate-600">{children}</h2>
+    ),
+    h3: ({children}) => (
+      <h3 className="text-slate-200 font-semibold text-sm mt-4 mb-1">{children}</h3>
+    ),
+    p: ({children}) => (
+      <p className="text-slate-300 leading-relaxed mb-3">{children}</p>
+    ),
+    ol: ({children}) => (
+      <ol className="list-decimal list-outside ml-5 space-y-2 text-slate-300 mb-4">{children}</ol>
+    ),
+    ul: ({children}) => (
+      <ul className="list-disc list-outside ml-5 space-y-1 text-slate-300 mb-4">{children}</ul>
+    ),
+    li: ({children}) => (
+      <li className="text-slate-300 leading-relaxed pl-1">{children}</li>
+    ),
+    strong: ({children}) => (
+      <strong className="text-white font-semibold">{children}</strong>
+    ),
+    code: ({children}) => (
+      <code className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
+    ),
+    table: ({children}) => (
+      <div className="overflow-x-auto my-4 rounded-lg border border-slate-600">
+        <table className="w-full text-sm text-left">{children}</table>
+      </div>
+    ),
+    thead: ({children}) => (
+      <thead className="bg-slate-700/80 text-indigo-300 text-xs uppercase tracking-wider">{children}</thead>
+    ),
+    tbody: ({children}) => (
+      <tbody className="divide-y divide-slate-700/50">{children}</tbody>
+    ),
+    tr: ({children}) => (
+      <tr className="hover:bg-slate-700/30 transition-colors">{children}</tr>
+    ),
+    th: ({children}) => (
+      <th className="px-4 py-3 font-semibold text-slate-200">{children}</th>
+    ),
+    td: ({children}) => (
+      <td className="px-4 py-3 text-slate-300">{children}</td>
+    ),
+    blockquote: ({children}) => (
+      <blockquote className="border-l-4 border-indigo-500 pl-4 my-3 text-slate-400 italic bg-slate-800/50 py-2 rounded-r">{children}</blockquote>
+    ),
+    hr: () => <hr className="border-slate-600 my-5" />,
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] lg:h-[calc(100vh-1.5rem)] animate-fadein">
 
       {/* Message history */}
       <div className="flex-1 overflow-y-auto px-2 py-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
-            <div>
-              <p className="text-2xl font-bold text-slate-100 mb-1">💬 CVE Chat</p>
-              <p className="text-slate-400 text-sm">Ask anything about vulnerabilities</p>
-            </div>
-            <div className="flex flex-col gap-2 w-full max-w-md">
-              {EXAMPLES.map(ex => (
-                <button
-                  key={ex}
-                  onClick={() => sendMessage(ex)}
-                  className="text-sm text-left px-4 py-2.5 rounded-xl border border-border bg-card hover:border-brand/60 hover:bg-white/5 text-slate-300 transition-colors"
-                >
-                  {ex}
-                </button>
-              ))}
+          <div className="flex flex-col items-end h-full">
+            <div className="flex flex-col items-center text-center w-full max-w-xl mx-auto pb-8 mt-auto">
+              {/* Brand */}
+              <div className="flex items-center gap-2 mb-2">
+                <div style={{
+                  background: 'linear-gradient(135deg, #3b82f6, #ef4444)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  borderRadius: '5px',
+                  fontSize: '0.7rem',
+                  padding: '3px 5px',
+                  lineHeight: 1,
+                }}>VL</div>
+                <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>VulnLens</span>
+              </div>
+
+              {/* Heading */}
+              <p style={{ fontSize: '1.25rem', fontWeight: 600, color: '#fff', marginBottom: '6px' }}>
+                Ask anything about CVEs
+              </p>
+
+              {/* Subtitle */}
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '24px' }}>
+                Answers grounded in real NVD data — no hallucinated CVEs
+              </p>
+
+              {/* Example cards */}
+              <div className="flex gap-3 w-full" style={{ flexWrap: 'nowrap' }}>
+                {WELCOME_CARDS.map(({ label, question }) => (
+                  <button
+                    key={label}
+                    onClick={() => setInput(question)}
+                    style={{
+                      flex: 1,
+                      textAlign: 'left',
+                      background: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: '10px',
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.background = '#263548' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.background = '#1e293b' }}
+                  >
+                    <p style={{
+                      fontSize: '0.65rem',
+                      fontFamily: "'Consolas','Courier New',monospace",
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: '#3b82f6',
+                      marginBottom: '4px',
+                    }}>{label}</p>
+                    <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.4 }}>{question}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <p style={{ fontSize: '0.65rem', color: '#475569', marginTop: '16px' }}>
+                Powered by RAG · ChromaDB · Groq LLaMA 3.3
+              </p>
             </div>
           </div>
         ) : (
@@ -205,7 +305,9 @@ export default function Chat() {
               }`}>
                 {msg.loading && !msg.content
                   ? <TypingDots />
-                  : <MessageText text={msg.content} />
+                  : msg.role === 'assistant'
+                    ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>
+                    : <MessageText text={msg.content} />
                 }
                 {msg.role === 'assistant' && msg.sources && (
                   <SourceChips sources={msg.sources} onNavigate={navigate} />

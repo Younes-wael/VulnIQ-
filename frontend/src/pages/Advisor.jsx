@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { fetchAdvisory, streamAdvice } from '../lib/api'
 import SeverityBadge from '../components/SeverityBadge'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const CVE_RE = /^CVE-\d{4}-\d{4,}$/i
 
@@ -171,10 +173,62 @@ export default function Advisor() {
     ? (Array.isArray(cve.products) ? cve.products : (cve.products || '').split(',').map(p => p.trim()).filter(Boolean))
     : []
 
+  const markdownComponents = {
+    h2: ({children}) => (
+      <h2 className="text-indigo-400 font-bold uppercase tracking-widest text-base mt-6 mb-2 pb-1 border-b border-slate-600">{children}</h2>
+    ),
+    h3: ({children}) => (
+      <h3 className="text-slate-200 font-semibold text-sm mt-4 mb-1">{children}</h3>
+    ),
+    p: ({children}) => (
+      <p className="text-slate-300 leading-relaxed mb-3">{children}</p>
+    ),
+    ol: ({children}) => (
+      <ol className="list-decimal list-outside ml-5 space-y-2 text-slate-300 mb-4">{children}</ol>
+    ),
+    ul: ({children}) => (
+      <ul className="list-disc list-outside ml-5 space-y-1 text-slate-300 mb-4">{children}</ul>
+    ),
+    li: ({children}) => (
+      <li className="text-slate-300 leading-relaxed pl-1">{children}</li>
+    ),
+    strong: ({children}) => (
+      <strong className="text-white font-semibold">{children}</strong>
+    ),
+    code: ({children}) => (
+      <code className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
+    ),
+    table: ({children}) => (
+      <div className="overflow-x-auto my-4 rounded-lg border border-slate-600">
+        <table className="w-full text-sm text-left">{children}</table>
+      </div>
+    ),
+    thead: ({children}) => (
+      <thead className="bg-slate-700/80 text-indigo-300 text-xs uppercase tracking-wider">{children}</thead>
+    ),
+    tbody: ({children}) => (
+      <tbody className="divide-y divide-slate-700/50">{children}</tbody>
+    ),
+    tr: ({children}) => (
+      <tr className="hover:bg-slate-700/30 transition-colors">{children}</tr>
+    ),
+    th: ({children}) => (
+      <th className="px-4 py-3 font-semibold text-slate-200">{children}</th>
+    ),
+    td: ({children}) => (
+      <td className="px-4 py-3 text-slate-300">{children}</td>
+    ),
+    blockquote: ({children}) => (
+      <blockquote className="border-l-4 border-indigo-500 pl-4 my-3 text-slate-400 italic bg-slate-800/50 py-2 rounded-r">{children}</blockquote>
+    ),
+    hr: () => <hr className="border-slate-600 my-5" />,
+  }
+
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-8 animate-fadein">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">🛡️ Patch Advisor</h1>
+        <div style={{ width: '32px', height: '3px', borderRadius: '2px', background: '#3b82f6', marginBottom: '8px', display: 'block' }} />
+        <h1 className="text-2xl font-bold text-slate-100">Patch Advisor</h1>
         <p className="text-slate-400 text-sm mt-1">
           Enter a CVE ID to get structured risk analysis and AI-powered remediation advice
         </p>
@@ -353,7 +407,11 @@ export default function Advisor() {
             )}
 
             {advice && (
-              <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{advice}</p>
+              <div className="bg-slate-900 rounded-xl p-6 border border-slate-700 text-sm leading-relaxed">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {advice}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         </>

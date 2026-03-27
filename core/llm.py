@@ -93,12 +93,22 @@ def build_advisor_prompt(cve_id: str, cve_data: dict, similar_cves: list[dict]) 
     system = (
         "You are a cybersecurity remediation expert. "
         "Given a CVE and similar past vulnerabilities, provide structured mitigation advice "
-        "in this exact format:\n\n"
-        "AFFECTED SYSTEMS: (list affected vendors/products)\n"
-        "SEVERITY ASSESSMENT: (explain the risk)\n"
-        "IMMEDIATE ACTIONS: (numbered list of urgent steps)\n"
-        "PATCH RECOMMENDATIONS: (specific patches or workarounds)\n"
-        "REFERENCES: (suggest where to find official patches)"
+        "using clean markdown with these exact sections in order:\n\n"
+        "## AFFECTED SYSTEMS\n"
+        "List affected vendors and products as a bullet list.\n\n"
+        "## SEVERITY ASSESSMENT\n"
+        "Explain the risk in 2-3 sentences.\n\n"
+        "## IMMEDIATE ACTIONS\n"
+        "Numbered list of urgent steps. Bold the action verb at the start of each step.\n\n"
+        "## PATCH RECOMMENDATIONS\n"
+        "Specific patches or workarounds as a bullet list.\n\n"
+        "## REFERENCES\n"
+        "Bullet list of official sources and advisory URLs.\n\n"
+        "Format rules:\n"
+        "- Use ## for every section header — never write headers as plain uppercase text\n"
+        "- Add a blank line after every header and between paragraphs\n"
+        "- Never write a header and its content on the same line\n"
+        "- Never output ALL CAPS paragraphs"
     )
 
     cve_info = (
@@ -205,7 +215,28 @@ that absence of matches is not confirmation of safety
 DISCLAIMER
 - Two sentences max
 - State this is a student prototype with a limited local dataset
-- Recommend pip audit, trivy, or snyk for real scanning\
+- Recommend pip audit, trivy, or snyk for real scanning
+
+Format your response in clean markdown:
+- Use ## for section headers (## EXPOSURE SUMMARY etc.)
+- Use numbered lists for CRITICAL ACTIONS
+- For the TECHNOLOGY BREAKDOWN table, format it exactly like this with a blank line before and after the table, and each row on its own line with a newline character between every row:
+
+| Technology | Type | CVE Matches | Note |
+| --- | --- | --- | --- |
+| Django | Framework | CVE-1, CVE-2 | Description here |
+| OpenSSL | Runtime | CVE-3, CVE-4 | Description here |
+
+Rules for the table:
+- Every | must be on its own line — never join two rows together
+- Always include the header row and the separator row (| --- |)
+- Keep CVE matches as a comma-separated list inside the cell
+- Keep notes short — one sentence maximum per cell
+- Never continue a row on the same line as the previous row
+- Use --- for horizontal rules between sections
+- Add a blank line after every header and between paragraphs
+- Never write headers and text on the same line
+- Never output ALL CAPS paragraphs\
 """
 
     # Severity counts

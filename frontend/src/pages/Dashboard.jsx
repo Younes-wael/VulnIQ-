@@ -111,7 +111,8 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6 pb-8 animate-fadein">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">📊 CVE Dashboard</h1>
+        <div style={{ width: '32px', height: '3px', borderRadius: '2px', background: '#f97316', marginBottom: '8px', display: 'block' }} />
+        <h1 className="text-2xl font-bold text-slate-100">CVE Dashboard</h1>
         <p className="text-slate-400 text-sm mt-1">Trends and statistics from the NVD database</p>
       </div>
 

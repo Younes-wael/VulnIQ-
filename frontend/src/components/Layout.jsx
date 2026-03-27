@@ -3,18 +3,18 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 
 const PAGE_TITLES = {
-  '/':          '🏠 Home',
-  '/chat':      '💬 Chat',
-  '/search':    '🔎 Search',
-  '/dashboard': '📊 Dashboard',
-  '/advisor':   '🛡️ Advisor',
-  '/stack':     '🧱 Stack Analysis',
+  '/':          'Home',
+  '/chat':      'Chat',
+  '/search':    'Search',
+  '/dashboard': 'Dashboard',
+  '/advisor':   'Advisor',
+  '/stack':     'Stack Analysis',
 }
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const pageTitle = PAGE_TITLES[location.pathname] ?? 'CVE Assistant'
+  const pageTitle = PAGE_TITLES[location.pathname] ?? 'VulnLens'
 
   return (
     <div className="flex h-screen bg-surface text-slate-100 overflow-hidden">
