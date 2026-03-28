@@ -1,13 +1,3 @@
----
-title: VulnLens
-emoji: 🔐
-colorFrom: red
-colorTo: orange
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # VulnLens
 
 **Vulnerability intelligence platform powered by RAG, grounded in NVD data.**
