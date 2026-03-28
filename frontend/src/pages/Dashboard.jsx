@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ResponsiveContainer,
   LineChart, Line,
@@ -15,7 +16,22 @@ import {
   fetchVendorTrends,
   fetchCVSSTrends,
   fetchSeverityByYear,
+  getWatchlists,
 } from '../lib/api'
+
+function relativeTime(dateStr) {
+  if (!dateStr) return 'Never'
+  const iso = dateStr.replace(' ', 'T') + (dateStr.includes('T') ? '' : 'Z')
+  const diff = Date.now() - new Date(iso).getTime()
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} min ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
+}
 
 const SEV_COLORS = {
   CRITICAL: '#ef4444',
@@ -85,6 +101,7 @@ function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }) {
 }
 
 export default function Dashboard() {
+  const watchlistsData = useData(getWatchlists)
   const stats      = useData(fetchStats)
   const yearly     = useData(fetchYearlyTrends)
   const severity   = useData(fetchSeverityTrends)
@@ -108,12 +125,73 @@ export default function Dashboard() {
     return Object.values(map).sort((a, b) => a.year - b.year)
   })()
 
+  const recentlyAlerted = (watchlistsData.data || [])
+    .filter(w => w.last_alerted_at)
+    .sort((a, b) => new Date(b.last_alerted_at) - new Date(a.last_alerted_at))
+    .slice(0, 3)
+
   return (
     <div className="flex flex-col gap-6 pb-8 animate-fadein">
       <div>
         <div style={{ width: '32px', height: '3px', borderRadius: '2px', background: '#f97316', marginBottom: '8px', display: 'block' }} />
         <h1 className="text-2xl font-bold text-slate-100">CVE Dashboard</h1>
         <p className="text-slate-400 text-sm mt-1">Trends and statistics from the NVD database</p>
+      </div>
+
+      {/* ── Section 0: Watchlist Alerts ── */}
+      <div style={CHART_STYLE}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-slate-200">
+            Watchlist Alerts
+            {watchlistsData.data && (
+              <span className="ml-2 text-xs font-normal text-slate-500">
+                {watchlistsData.data.length} watchlist{watchlistsData.data.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </p>
+          <Link to="/watchlists" style={{ fontSize: '0.75rem', color: '#6366f1', textDecoration: 'none' }}
+            onMouseEnter={e => e.target.style.textDecoration = 'underline'}
+            onMouseLeave={e => e.target.style.textDecoration = 'none'}
+          >
+            Manage →
+          </Link>
+        </div>
+
+        {watchlistsData.loading && (
+          <div className="animate-pulse h-8 bg-slate-700 rounded w-1/2" />
+        )}
+
+        {watchlistsData.error && (
+          <p className="text-xs text-red-400">{watchlistsData.error}</p>
+        )}
+
+        {!watchlistsData.loading && !watchlistsData.error && watchlistsData.data?.length === 0 && (
+          <p className="text-xs text-slate-500">
+            No watchlists configured.{' '}
+            <Link to="/watchlists" style={{ color: '#6366f1' }}>Create one →</Link>
+          </p>
+        )}
+
+        {!watchlistsData.loading && recentlyAlerted.length === 0 && watchlistsData.data?.length > 0 && (
+          <p className="text-xs text-slate-500">No alerts delivered yet.</p>
+        )}
+
+        {recentlyAlerted.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {recentlyAlerted.map(w => (
+              <div key={w.id} className="flex items-center justify-between text-xs py-1 border-b border-slate-700/50 last:border-0">
+                <span className="text-slate-200 font-medium">{w.name}</span>
+                <span className="text-slate-500">{relativeTime(w.last_alerted_at)}</span>
+              </div>
+            ))}
+            <Link
+              to="/watchlists"
+              style={{ fontSize: '0.7rem', color: '#6366f1', marginTop: '4px', display: 'inline-block' }}
+            >
+              View all watchlists →
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* ── Section 1: Metrics ── */}

@@ -1,29 +1,38 @@
 """Handles semantic search over ChromaDB — embeds user queries and retrieves top-K most relevant CVE chunks."""
 
 import re
-import sqlite3
 
 import chromadb
-import streamlit as st
 from sentence_transformers import SentenceTransformer
 
-from config import EMBEDDING_MODEL, CHROMA_PATH, TOP_K_RETRIEVAL, SQLITE_PATH
+from config import EMBEDDING_MODEL, CHROMA_PATH, TOP_K_RETRIEVAL
+from core.db import get_db
 
 
 CVE_ID_PATTERN = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
 
+_embedding_model: SentenceTransformer | None = None
+_chroma_collection: chromadb.Collection | None = None
 
-@st.cache_resource
+
 def get_embedding_model() -> SentenceTransformer:
-    """Load the embedding model once and cache it across all pages and sessions."""
-    return SentenceTransformer(EMBEDDING_MODEL)
+    """Return the shared embedding model, loading it on first call."""
+    global _embedding_model
+    if _embedding_model is None:
+        _embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+    return _embedding_model
 
 
-@st.cache_resource
 def get_collection() -> chromadb.Collection:
-    """Initialize ChromaDB once and cache it across all pages and sessions."""
-    client = chromadb.PersistentClient(path=CHROMA_PATH)
-    return client.get_or_create_collection(name="cve_vulnerabilities")
+    """Return the shared ChromaDB collection, initializing it on first call."""
+    global _chroma_collection
+    if _chroma_collection is None:
+        client = chromadb.PersistentClient(path=CHROMA_PATH)
+        _chroma_collection = client.get_or_create_collection(
+            name="cve_vulnerabilities",
+            metadata={"hnsw:space": "cosine"},
+        )
+    return _chroma_collection
 
 
 def _sqlite_result(row) -> dict:
@@ -47,18 +56,15 @@ def _fetch_exact_cves(cve_ids: list[str]) -> list[dict]:
     """Look up specific CVE IDs directly from SQLite."""
     if not cve_ids:
         return []
-    conn = sqlite3.connect(SQLITE_PATH)
-    try:
-        placeholders = ",".join("?" * len(cve_ids))
-        rows = conn.execute(
-            f"SELECT cve_id, description, published_date, last_modified, "
-            f"cvss_score, severity, year, vendors, products FROM cves "
-            f"WHERE cve_id IN ({placeholders})",
-            [c.upper() for c in cve_ids],
-        ).fetchall()
-        return [_sqlite_result(r) for r in rows]
-    finally:
-        conn.close()
+    conn = get_db()
+    placeholders = ",".join("?" * len(cve_ids))
+    rows = conn.execute(
+        f"SELECT cve_id, description, published_date, last_modified, "
+        f"cvss_score, severity, year, vendors, products FROM cves "
+        f"WHERE cve_id IN ({placeholders})",
+        [c.upper() for c in cve_ids],
+    ).fetchall()
+    return [_sqlite_result(r) for r in rows]
 
 
 def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
@@ -98,8 +104,8 @@ def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
         if filters:
             conditions = []
 
-            if 'severity' in filters:
-                conditions.append({"severity": {"$eq": filters['severity']}})
+            if filters.get('severities'):
+                conditions.append({"severity": {"$in": filters['severities']}})
 
             if 'year_from' in filters:
                 conditions.append({"year": {"$gte": str(filters['year_from'])}})
@@ -136,7 +142,7 @@ def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
                     "year": int(metadata.get('year', 0)) if metadata.get('year') else None,
                     "vendors": metadata.get('vendors', ''),
                     "products": metadata.get('products', ''),
-                    "relevance_score": round(1 - raw['distances'][0][i], 4),
+                    "relevance_score": max(0.0, round(1 - raw['distances'][0][i], 4)),
                 })
 
     # Exact matches first, then semantic results
@@ -152,37 +158,33 @@ def get_cve_by_id(cve_id: str) -> dict | None:
     Returns:
         CVE dict or None if not found
     """
-    conn = sqlite3.connect(SQLITE_PATH)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT cve_id, description, published_date, last_modified, 
-                   cvss_score, severity, year, vendors, products 
-            FROM cves WHERE cve_id = ?
-        """, (cve_id,))
-        
-        row = cursor.fetchone()
-        if row:
-            cve_id, description, published_date, last_modified, cvss_score, severity, year, vendors_str, products_str = row
-            
-            # Parse comma-separated strings back to lists
-            vendors = [v.strip() for v in vendors_str.split(',')] if vendors_str else []
-            products = [p.strip() for p in products_str.split(',')] if products_str else []
-            
-            return {
-                "cve_id": cve_id,
-                "description": description,
-                "published_date": published_date,
-                "last_modified": last_modified,
-                "cvss_score": cvss_score,
-                "severity": severity,
-                "year": year,
-                "vendors": vendors,
-                "products": products
-            }
-        return None
-    finally:
-        conn.close()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT cve_id, description, published_date, last_modified,
+               cvss_score, severity, year, vendors, products
+        FROM cves WHERE cve_id = ?
+    """, (cve_id,))
+
+    row = cursor.fetchone()
+    if row:
+        cve_id, description, published_date, last_modified, cvss_score, severity, year, vendors_str, products_str = row
+
+        vendors = [v.strip() for v in vendors_str.split(',')] if vendors_str else []
+        products = [p.strip() for p in products_str.split(',')] if products_str else []
+
+        return {
+            "cve_id": cve_id,
+            "description": description,
+            "published_date": published_date,
+            "last_modified": last_modified,
+            "cvss_score": cvss_score,
+            "severity": severity,
+            "year": year,
+            "vendors": vendors,
+            "products": products
+        }
+    return None
 
 
 def format_context(results: list[dict]) -> str:
@@ -205,10 +207,7 @@ def format_context(results: list[dict]) -> str:
         vendors = result['vendors']
         products = result['products']
         
-        # Truncate description to keep prompt small
         description = result['document']
-        if len(description) > 200:
-            description = description[:200] + "..."
         
         context += f"[{cve_id}] Severity: {severity} | CVSS: {cvss_score}\n"
         context += f"Vendors: {vendors} | Products: {products}\n"

@@ -9,6 +9,8 @@ const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/advisor':   'Advisor',
   '/stack':     'Stack Analysis',
+  '/sbom':        'SBOM Scanner',
+  '/watchlists':  'Watchlists',
 }
 
 export default function Layout() {

@@ -17,7 +17,10 @@ def get_chroma_collection() -> chromadb.Collection:
         ChromaDB collection for CVE vulnerabilities
     """
     client = chromadb.PersistentClient(path=CHROMA_PATH)
-    collection = client.get_or_create_collection(name="cve_vulnerabilities")
+    collection = client.get_or_create_collection(
+        name="cve_vulnerabilities",
+        metadata={"hnsw:space": "cosine"},
+    )
     return collection
 
 
@@ -49,13 +52,14 @@ Description: {description}"""
     return chunk
 
 
-def embed_file(collection: chromadb.Collection, year: int) -> tuple[int, int, int]:
+def embed_file(collection: chromadb.Collection, model: SentenceTransformer, year: int) -> tuple[int, int, int]:
     """Load and embed CVEs from one processed JSON file.
-    
+
     Args:
         collection: ChromaDB collection
+        model: Pre-loaded SentenceTransformer embedding model
         year: Year to process
-        
+
     Returns:
         Tuple of (embedded, skipped, failed) counts
     """
@@ -63,12 +67,10 @@ def embed_file(collection: chromadb.Collection, year: int) -> tuple[int, int, in
     if not processed_file.exists():
         print(f"Processed file for {year} not found: {processed_file}")
         return 0, 0, 0
-    
+
     try:
         with open(processed_file, 'r', encoding='utf-8') as f:
             cves = json.load(f)
-        
-        model = SentenceTransformer(EMBEDDING_MODEL)
         
         embedded = 0
         skipped = 0
@@ -153,15 +155,16 @@ def embed_all(start_year: int = 2015, end_year: int = 2026) -> None:
         end_year: Last year to embed (inclusive)
     """
     collection = get_chroma_collection()
-    
+    model = SentenceTransformer(EMBEDDING_MODEL)
+
     total_embedded = 0
     total_skipped = 0
     total_failed = 0
-    
+
     print(f"Embedding CVE data from {start_year} to {end_year}...")
-    
+
     for year in range(start_year, end_year + 1):
-        embedded, skipped, failed = embed_file(collection, year)
+        embedded, skipped, failed = embed_file(collection, model, year)
         
         total_embedded += embedded
         total_skipped += skipped

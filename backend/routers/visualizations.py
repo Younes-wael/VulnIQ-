@@ -10,19 +10,15 @@ import sqlite3
 
 from fastapi import APIRouter, HTTPException
 
-from config import SQLITE_PATH
+from core.db import get_db
 
 router = APIRouter(tags=["visualizations"])
 
 
 def _query(sql: str, params: tuple = ()) -> list[tuple]:
-    conn = sqlite3.connect(SQLITE_PATH)
-    try:
-        cursor = conn.cursor()
-        cursor.execute(sql, params)
-        return cursor.fetchall()
-    finally:
-        conn.close()
+    cursor = get_db().cursor()
+    cursor.execute(sql, params)
+    return cursor.fetchall()
 
 
 @router.get("/stats")

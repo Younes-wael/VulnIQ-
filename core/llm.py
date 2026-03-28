@@ -6,7 +6,6 @@ Requires GROQ_API_KEY environment variable.
 import os
 from typing import Generator
 
-import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq, AuthenticationError, RateLimitError
 
@@ -15,11 +14,15 @@ load_dotenv()
 from config import GROQ_MODEL
 from core.retriever import retrieve, format_context, get_cve_by_id
 
+_groq_client: Groq | None = None
 
-@st.cache_resource
+
 def get_groq_client() -> Groq:
-    """Create and cache a single Groq client for the app lifetime."""
-    return Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    """Return the shared Groq client, creating it on first call."""
+    global _groq_client
+    if _groq_client is None:
+        _groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    return _groq_client
 
 
 def check_groq() -> tuple[bool, str]:
@@ -34,25 +37,27 @@ def check_groq() -> tuple[bool, str]:
     return True, GROQ_MODEL
 
 
-def stream_response(system: str, user: str) -> Generator[str, None, None]:
+def stream_response(system: str, user: str, history: list = None) -> Generator[str, None, None]:
     """Stream a Groq response token by token.
 
     Args:
-        system: System prompt string
-        user:   User message string
+        system:  System prompt string
+        user:    User message string
+        history: Optional list of prior turns as {role, content} dicts
 
     Yields:
         Text tokens as they arrive, or an error string
     """
     try:
         client = get_groq_client()
+        messages = [{"role": "system", "content": system}]
+        if history:
+            messages.extend({"role": m["role"], "content": m["content"]} for m in history)
+        messages.append({"role": "user", "content": user})
         stream = client.chat.completions.create(
             model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user},
-            ],
-            max_tokens=1024,
+            messages=messages,
+            max_tokens=2048,
             stream=True,
         )
         for chunk in stream:

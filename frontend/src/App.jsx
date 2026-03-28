@@ -6,6 +6,8 @@ import Search        from './pages/Search'
 import Dashboard     from './pages/Dashboard'
 import Advisor       from './pages/Advisor'
 import StackAnalysis from './pages/StackAnalysis'
+import SBOMScanner  from './pages/SBOMScanner'
+import Watchlists   from './pages/Watchlists'
 
 export default function App() {
   return (
@@ -18,6 +20,8 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/advisor"  element={<Advisor />} />
           <Route path="/stack"    element={<StackAnalysis />} />
+          <Route path="/sbom"       element={<SBOMScanner />} />
+          <Route path="/watchlists" element={<Watchlists />} />
         </Route>
       </Routes>
     </BrowserRouter>

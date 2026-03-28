@@ -24,13 +24,13 @@ class ChatRequest(BaseModel):
     filters: dict = {}
 
 
-async def _sse_stream(message: str, filters: dict) -> AsyncGenerator[str, None]:
+async def _sse_stream(message: str, filters: dict, history: list) -> AsyncGenerator[str, None]:
     try:
         results = retrieve(message, filters=filters if filters else None)
         context = format_context(results)
         system, user = build_chat_prompt(message, context)
 
-        for token in stream_response(system, user):
+        for token in stream_response(system, user, history=history):
             if token.startswith("Error:"):
                 yield f"data: [ERROR] {token}\n\n"
                 return
@@ -47,6 +47,6 @@ async def _sse_stream(message: str, filters: dict) -> AsyncGenerator[str, None]:
 @router.post("/chat")
 def chat(req: ChatRequest):
     return StreamingResponse(
-        _sse_stream(req.message, req.filters),
+        _sse_stream(req.message, req.filters, req.history),
         media_type="text/event-stream",
     )

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { fetchAdvisory, streamAdvice } from '../lib/api'
+import { fetchAdvisory, streamAdvice, exportAdvisorPDF } from '../lib/api'
 import SeverityBadge from '../components/SeverityBadge'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -84,6 +84,9 @@ export default function Advisor() {
   const [adviceError, setAdviceError] = useState(null)
   const [adviceDone, setAdviceDone]   = useState(false)
 
+  const [exporting, setExporting]       = useState(false)
+  const [exportError, setExportError]   = useState('')
+
   const adviceRef = useRef(null)
 
   // Auto-populate and submit from ?cve= URL param
@@ -133,34 +136,9 @@ export default function Advisor() {
       cveId,
       (token) => setAdvice(prev => prev + token),
       (err) => { setAdviceError(err); setAdviceStreaming(false) },
+      () => { setAdviceStreaming(false); setAdviceDone(true) },
     )
-    // detect done: watch for stream ending via a small trick —
-    // readSSEStream calls onDone but our streamAdvice doesn't expose it;
-    // we'll rely on the absence of new tokens to show "Regenerate"
-    // by setting done after a short delay once streaming stops naturally.
-    // Instead we pass onDone via a wrapper:
-    // (already handled below via the done detection approach)
   }
-
-  // Detect streaming completion: when adviceStreaming is true and
-  // we haven't received a new token for 1.5s, mark done.
-  const lastTokenTime = useRef(0)
-  useEffect(() => {
-    if (!adviceStreaming) return
-    lastTokenTime.current = Date.now()
-  }, [advice])
-
-  useEffect(() => {
-    if (!adviceStreaming) return
-    const interval = setInterval(() => {
-      if (Date.now() - lastTokenTime.current > 1500 && advice) {
-        setAdviceStreaming(false)
-        setAdviceDone(true)
-        clearInterval(interval)
-      }
-    }, 500)
-    return () => clearInterval(interval)
-  }, [adviceStreaming, advice])
 
   const cve         = advisory?.cve
   const riskSummary = advisory?.risk_summary
@@ -308,14 +286,49 @@ export default function Advisor() {
           <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Vulnerability Details</p>
-              <a
-                href={`https://nvd.nist.gov/vuln/detail/${cve.cve_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-brand hover:underline"
-              >
-                View on NVD ↗
-              </a>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`https://nvd.nist.gov/vuln/detail/${cve.cve_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-brand hover:underline"
+                >
+                  View on NVD ↗
+                </a>
+                <button
+                  disabled={exporting}
+                  onClick={async () => {
+                    setExporting(true)
+                    setExportError('')
+                    try {
+                      await exportAdvisorPDF(cve.cve_id, advice)
+                    } catch {
+                      setExportError('Export failed')
+                      setTimeout(() => setExportError(''), 3000)
+                    } finally {
+                      setExporting(false)
+                    }
+                  }}
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    background: 'transparent',
+                    border: '1px solid #334155',
+                    color: exporting ? '#475569' : '#94a3b8',
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    transition: 'border-color 0.15s, color 0.15s',
+                    opacity: exporting ? 0.6 : 1,
+                  }}
+                  onMouseEnter={e => { if (!exporting) { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444' } }}
+                  onMouseLeave={e => { if (!exporting) { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#94a3b8' } }}
+                >
+                  {exporting ? 'Exporting…' : '↓ Export PDF'}
+                </button>
+                {exportError && (
+                  <span style={{ fontSize: '0.7rem', color: '#ef4444' }}>{exportError}</span>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">

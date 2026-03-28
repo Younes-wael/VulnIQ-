@@ -2,11 +2,10 @@
 Generates structured patch and mitigation recommendations by combining CVE data with LLM reasoning.
 """
 
-import sqlite3
 from datetime import date
 from typing import List, Dict, Optional, Generator
 
-from config import SQLITE_PATH
+from core.db import get_db
 from core.retriever import get_cve_by_id
 from core.llm import advise
 
@@ -22,31 +21,21 @@ def get_related_by_vendor(vendor: str, exclude_cve_id: str, limit: int = 5) -> L
     Returns:
         List of CVE dicts with basic info
     """
-    conn = sqlite3.connect(SQLITE_PATH)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT c.cve_id, c.severity, c.cvss_score, c.published_date, c.description
-            FROM cves c
-            JOIN vendors v ON c.cve_id = v.cve_id
-            WHERE v.vendor = ? AND c.cve_id != ?
-            ORDER BY c.cvss_score DESC
-            LIMIT ?
-        """, (vendor, exclude_cve_id, limit))
-        
-        rows = cursor.fetchall()
-        results = []
-        for row in rows:
-            results.append({
-                'cve_id': row[0],
-                'severity': row[1],
-                'cvss_score': row[2],
-                'published_date': row[3],
-                'description': row[4]
-            })
-        return results
-    finally:
-        conn.close()
+    cursor = get_db().cursor()
+    cursor.execute("""
+        SELECT c.cve_id, c.severity, c.cvss_score, c.published_date, c.description
+        FROM cves c
+        JOIN vendors v ON c.cve_id = v.cve_id
+        WHERE v.vendor = ? AND c.cve_id != ?
+        ORDER BY c.cvss_score DESC
+        LIMIT ?
+    """, (vendor, exclude_cve_id, limit))
+
+    return [
+        {'cve_id': row[0], 'severity': row[1], 'cvss_score': row[2],
+         'published_date': row[3], 'description': row[4]}
+        for row in cursor.fetchall()
+    ]
 
 
 def get_related_by_product(product: str, exclude_cve_id: str, limit: int = 5) -> List[Dict]:
@@ -60,31 +49,21 @@ def get_related_by_product(product: str, exclude_cve_id: str, limit: int = 5) ->
     Returns:
         List of CVE dicts with basic info
     """
-    conn = sqlite3.connect(SQLITE_PATH)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT c.cve_id, c.severity, c.cvss_score, c.published_date, c.description
-            FROM cves c
-            JOIN products p ON c.cve_id = p.cve_id
-            WHERE p.product = ? AND c.cve_id != ?
-            ORDER BY c.cvss_score DESC
-            LIMIT ?
-        """, (product, exclude_cve_id, limit))
-        
-        rows = cursor.fetchall()
-        results = []
-        for row in rows:
-            results.append({
-                'cve_id': row[0],
-                'severity': row[1],
-                'cvss_score': row[2],
-                'published_date': row[3],
-                'description': row[4]
-            })
-        return results
-    finally:
-        conn.close()
+    cursor = get_db().cursor()
+    cursor.execute("""
+        SELECT c.cve_id, c.severity, c.cvss_score, c.published_date, c.description
+        FROM cves c
+        JOIN products p ON c.cve_id = p.cve_id
+        WHERE p.product = ? AND c.cve_id != ?
+        ORDER BY c.cvss_score DESC
+        LIMIT ?
+    """, (product, exclude_cve_id, limit))
+
+    return [
+        {'cve_id': row[0], 'severity': row[1], 'cvss_score': row[2],
+         'published_date': row[3], 'description': row[4]}
+        for row in cursor.fetchall()
+    ]
 
 
 def compute_risk_summary(cve: Dict) -> Dict:

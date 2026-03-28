@@ -35,6 +35,18 @@ const FEATURES = [
     title: 'Stack Analysis',
     desc: 'Input your tech stack and find which CVEs may affect you — with risk scoring and AI report.',
   },
+  {
+    to: '/sbom',
+    color: '#10b981',
+    title: 'SBOM Scanner',
+    desc: 'Upload a dependency file and instantly surface all known CVEs affecting your packages.',
+  },
+  {
+    to: '/watchlists',
+    color: '#10b981',
+    title: 'Watchlists',
+    desc: 'Monitor vendors, products, and keywords. Get webhook alerts the moment new CVEs match.',
+  },
 ]
 
 const QUICK_ACTIONS = [
@@ -42,19 +54,25 @@ const QUICK_ACTIONS = [
     to: '/search',
     borderColor: '#ef4444',
     title: 'Search Critical CVEs',
-    desc: 'Browse CRITICAL severity vulnerabilities from the last 2 years',
+    desc: 'Filter by severity, vendor, and CVSS score',
   },
   {
-    to: '/stack',
-    borderColor: '#3b82f6',
-    title: 'Analyze Your Stack',
-    desc: 'Find CVEs that may affect your specific technology stack',
+    to: '/sbom',
+    borderColor: '#10b981',
+    title: 'Scan a Dependency File',
+    desc: 'Upload requirements.txt, package.json, or pom.xml',
+  },
+  {
+    to: '/watchlists',
+    borderColor: '#10b981',
+    title: 'Set Up a Watchlist',
+    desc: 'Get alerted when new CVEs match your stack',
   },
   {
     to: '/advisor',
-    borderColor: '#3b82f6',
+    borderColor: '#6366f1',
     title: 'Look Up a CVE',
-    desc: 'Enter any CVE ID to get full risk analysis and AI remediation advice',
+    desc: 'Get AI-generated patch advice for any CVE ID',
   },
 ]
 
@@ -83,7 +101,7 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    searchCVEs({ severities: ['CRITICAL'], year_from: 2023, limit: 5 })
+    searchCVEs({ severities: ['CRITICAL'], limit: 5 })
       .then(data => setRecentCVEs(data.results || []))
       .catch(() => {})
       .finally(() => setRecentLoading(false))
@@ -124,7 +142,7 @@ export default function Home() {
         </div>
         <div className="flex flex-wrap gap-3 mt-1">
           <button
-            onClick={() => navigate('/chat')}
+            onClick={() => navigate('/sbom')}
             style={{
               padding: '10px 20px',
               borderRadius: '10px',
@@ -139,10 +157,10 @@ export default function Home() {
             onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
           >
-            Start Chatting →
+            Start scanning →
           </button>
           <button
-            onClick={() => navigate('/stack')}
+            onClick={() => navigate('/search')}
             style={{
               padding: '10px 20px',
               borderRadius: '10px',
@@ -157,7 +175,7 @@ export default function Home() {
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#fff' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#cbd5e1' }}
           >
-            Analyze My Stack →
+            Explore CVEs
           </button>
         </div>
       </div>
@@ -178,7 +196,7 @@ export default function Home() {
             <MetricTile label="Avg CVSS Score" value={stats.avg_cvss?.toFixed(2)} color="#f97316" />
           </>
         ) : (
-          <p className="col-span-3 text-xs text-slate-500">Stats unavailable — start the backend to see live data.</p>
+          <p className="col-span-3 text-xs text-slate-500">Stats unavailable — make sure the backend is running.</p>
         )}
       </div>
 

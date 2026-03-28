@@ -9,13 +9,14 @@ Pipeline:
   5. Return a structured risk report via analyze_stack()
 """
 
+import re
 import sqlite3
 import logging
 from datetime import datetime, timezone
 
 import requests
 
-from config import SQLITE_PATH
+from core.db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,11 @@ EPSS_BATCH_SIZE = 100
 # ---------------------------------------------------------------------------
 
 def normalize_input(tech_list: list[str]) -> list[str]:
-    """Lowercase, strip whitespace, replace spaces with underscores."""
+    """Lowercase, strip whitespace, replace spaces with underscores, remove SQL wildcards."""
     normalized = []
     for tech in tech_list:
         cleaned = tech.lower().strip().replace(" ", "_")
+        cleaned = re.sub(r'[%_]', '', cleaned)
         if cleaned:
             normalized.append(cleaned)
     return normalized
@@ -55,9 +57,7 @@ def match_cves_for_stack(tech_list: list[str]) -> list[dict]:
     seen: dict[str, dict] = {}  # cve_id -> row dict (keeps first match per CVE)
 
     try:
-        con = sqlite3.connect(SQLITE_PATH)
-        con.row_factory = sqlite3.Row
-        cur = con.cursor()
+        cur = get_db().cursor()
 
         for term in normalized:
             like = f"%{term}%"
@@ -91,7 +91,6 @@ def match_cves_for_stack(tech_list: list[str]) -> list[dict]:
                         "matched_tech": term,
                     }
 
-        con.close()
     except sqlite3.Error as exc:
         logger.error("SQLite error in match_cves_for_stack: %s", exc)
         return []

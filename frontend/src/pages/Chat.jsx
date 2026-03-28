@@ -150,6 +150,16 @@ export default function Chat() {
         })
         setIsStreaming(false)
       },
+      // onDone — fires when stream closes without a [SOURCES] line (zero results)
+      () => {
+        setMessages(prev => {
+          const next = [...prev]
+          const last = { ...next[next.length - 1], loading: false }
+          next[next.length - 1] = last
+          return next
+        })
+        setIsStreaming(false)
+      },
     )
   }, [input, isStreaming, messages, filters])
 

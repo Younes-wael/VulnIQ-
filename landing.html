@@ -528,6 +528,7 @@
     <li><a href="#features">Features</a></li>
     <li><a href="#how">How It Works</a></li>
     <li><a href="#about">About</a></li>
+    <!-- TODO: replace localhost:5173 with production URL before deploying -->
     <li><a href="http://localhost:5173" class="btn-app">Enter App</a></li>
   </ul>
 </nav>
@@ -539,7 +540,7 @@
     <p class="hero-tag">Vulnerability Intelligence for the AI Era</p>
     <div class="hero-wordmark">VulnLens</div>
     <p class="hero-sub">
-      Scan your tech stack. Prioritize threats.<br>Act before attackers do.
+      Scan dependencies. Monitor vendors. Prioritize threats.<br>Act before attackers do.
     </p>
     <a href="http://localhost:5173" class="hero-cta">Enter VulnLens →</a>
   </div>
@@ -616,9 +617,15 @@
       </div>
       <div class="feat-card reveal" style="transition-delay:500ms">
         <span class="feat-tag">&lt;06&gt;</span>
-        <div class="feat-title">EPSS Scoring</div>
-        <div class="feat-desc">Exploitation probability scores from FIRST.org to help you prioritize what to patch first.</div>
-        <span class="feat-pill pill-cyan">FIRST.org</span>
+        <div class="feat-title">SBOM Scanner</div>
+        <div class="feat-desc">Upload a dependency file and instantly surface all known CVEs affecting your packages.</div>
+        <span class="feat-pill pill-green">Supply Chain</span>
+      </div>
+      <div class="feat-card reveal" style="transition-delay:600ms">
+        <span class="feat-tag">&lt;07&gt;</span>
+        <div class="feat-title">Watchlists</div>
+        <div class="feat-desc">Monitor vendors, products, and keywords. Get webhook alerts the moment new CVEs match.</div>
+        <span class="feat-pill pill-cyan">Webhook Alerts</span>
       </div>
     </div>
   </div>
@@ -629,15 +636,15 @@
   <div class="inner">
     <div class="reveal" style="text-align:center; margin-bottom:3.5rem;">
       <div class="sec-label">Process</div>
-      <h2 class="sec-title">From Stack to Action in 3 Steps</h2>
+      <h2 class="sec-title">From Dependency to Decision in 3 Steps</h2>
     </div>
     <div class="steps-row reveal">
       <div class="step">
         <div class="step-num">01</div>
         <div class="step-body">
           <span class="step-icon">📥</span>
-          <div class="step-title">Input Your Stack</div>
-          <p class="step-desc">List the technologies your project uses. Django, OpenSSL, Nginx — whatever you run.</p>
+          <div class="step-title">Upload or Search</div>
+          <p class="step-desc">Drop a dependency file, paste your tech stack, or look up any CVE ID. VulnLens meets you where your workflow starts.</p>
         </div>
       </div>
       <div class="step-arrow">→</div>
@@ -645,8 +652,8 @@
         <div class="step-num">02</div>
         <div class="step-body">
           <span class="step-icon">🔍</span>
-          <div class="step-title">Instant Analysis</div>
-          <p class="step-desc">VulnLens cross-references your stack against 200k+ CVEs and scores each threat by risk.</p>
+          <div class="step-title">Instant Cross-Reference</div>
+          <p class="step-desc">VulnLens matches your inputs against 200k+ NVD CVEs in real time, scoring every threat by CVSS severity and exploitation probability.</p>
         </div>
       </div>
       <div class="step-arrow">→</div>
@@ -654,8 +661,8 @@
         <div class="step-num">03</div>
         <div class="step-body">
           <span class="step-icon">🎯</span>
-          <div class="step-title">Act on Insights</div>
-          <p class="step-desc">Get prioritized recommendations and AI-generated patch guidance. Know what to fix first.</p>
+          <div class="step-title">Monitor and Act</div>
+          <p class="step-desc">Get AI-generated patch guidance, set watchlist alerts for ongoing coverage, and stay ahead of new vulnerabilities as they are published.</p>
         </div>
       </div>
     </div>
@@ -913,15 +920,15 @@ statsObs.observe(document.getElementById('stats'))
 
 /* ── Typewriter terminal ─────────────────────────────── */
 const LINES = [
-  { t: '$ vulnlens analyze --stack django,openssl,nginx', c: 'tc' },
-  { t: '✓ Stack received: 3 technologies',                c: 'ts' },
-  { t: '✓ Matching against NVD database...',              c: 'ts' },
-  { t: '✓ Relevant CVEs identified: 126',                 c: 'ts' },
-  { t: '! Critical vulnerabilities: 4',                   c: 'tw' },
-  { t: '! High severity vulnerabilities: 11',             c: 'tw' },
-  { t: '→ Highest EPSS risk: CVE-2023-44487',             c: 'ta' },
-  { t: '→ Generating AI summary and remediation guidance...', c: 'ta' },
-  { t: '✓ Report ready',                                  c: 'ts' },
+  { t: '$ vulnlens sbom --file requirements.txt',          c: 'tc' },
+  { t: '✓ Parsed 47 packages from requirements.txt',       c: 'ts' },
+  { t: '✓ Matching against NVD database...',               c: 'ts' },
+  { t: '✓ 12 packages have known CVEs',                    c: 'ts' },
+  { t: '! Critical vulnerabilities: 3',                    c: 'tw' },
+  { t: '! django 3.2.0 → CVE-2024-27351 (CVSS 9.8)',      c: 'tw' },
+  { t: '→ Webhook alert dispatched to Slack',              c: 'ta' },
+  { t: '→ Generating patch recommendations...',            c: 'ta' },
+  { t: '✓ Scan complete — 3 critical, 9 high',             c: 'ts' },
 ]
 
 const termBody   = document.getElementById('termBody')

@@ -120,12 +120,15 @@ def download_year(year: int) -> str:
         return 'failed'
 
 
-def download_all(start_year: int = 2015, end_year: int = 2026) -> None:
+def download_all(start_year: int = 2015, end_year: int = 2026) -> int:
     """Download CVE data for all years in the specified range.
 
     Args:
         start_year: First year to download
         end_year: Last year to download (inclusive)
+
+    Returns:
+        Number of years that failed to download
     """
     downloaded = skipped = failed = 0
     print(f"Downloading CVE data from {start_year} to {end_year} via NVD API 2.0...")
@@ -144,10 +147,14 @@ def download_all(start_year: int = 2015, end_year: int = 2026) -> None:
     print(f"  Skipped:    {skipped}")
     print(f"  Failed:     {failed}")
 
+    return failed
+
 
 def main() -> None:
     """Entry point for the download pipeline."""
-    download_all(start_year=PIPELINE_START_YEAR, end_year=PIPELINE_END_YEAR)
+    failed = download_all(start_year=PIPELINE_START_YEAR, end_year=PIPELINE_END_YEAR)
+    if failed > 0:
+        raise RuntimeError(f"{failed} year(s) failed to download — aborting pipeline")
 
 
 if __name__ == "__main__":

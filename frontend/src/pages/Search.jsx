@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchCVEs } from '../lib/api'
+import { searchCVEs, exportSearchCSV } from '../lib/api'
 import SeverityBadge from '../components/SeverityBadge'
 
 const SEV_OPTIONS = [
@@ -458,7 +458,7 @@ export default function Search() {
               type="text"
               value={filters.keyword}
               onChange={e => setFilters(f => ({ ...f, keyword: e.target.value }))}
-              placeholder="Search in description"
+              placeholder="CVE ID, description, vendor or product"
               className="w-full bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand"
             />
           </div>
@@ -497,7 +497,7 @@ export default function Search() {
             value={filters.keyword}
             onChange={e => setFilters(f => ({ ...f, keyword: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && runSearch()}
-            placeholder="Keyword search…"
+            placeholder="CVE ID, description, vendor or product"
             className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand"
           />
           <button
@@ -538,6 +538,7 @@ export default function Search() {
                 Showing <span className="font-semibold text-slate-200">{results.length}</span> result{results.length !== 1 ? 's' : ''}
                 {elapsed != null && <span className="ml-1 text-slate-500">· {elapsed.toFixed(1)}ms</span>}
               </p>
+              <div className="flex items-center gap-2 flex-wrap">
               {activePills.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {activePills.map(pill => (
@@ -569,6 +570,27 @@ export default function Search() {
                   ))}
                 </div>
               )}
+                <button
+                  onClick={() => exportSearchCSV(filters)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '0.75rem',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    background: 'transparent',
+                    border: '1px solid #334155',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.color = '#22c55e' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#94a3b8' }}
+                >
+                  ↓ Export CSV
+                </button>
+              </div>
             </div>
             {results.length === 100 && (
               <p className="text-xs text-medium bg-medium/10 border border-medium/30 px-3 py-1.5 rounded-lg">

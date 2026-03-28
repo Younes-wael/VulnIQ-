@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { analyzeStack, streamStackReport } from '../lib/api'
+import { analyzeStack, streamStackReport, exportStackPDF } from '../lib/api'
 import MetricTile from '../components/MetricTile'
 import SeverityBadge from '../components/SeverityBadge'
 import ReactMarkdown from 'react-markdown'
@@ -78,27 +78,11 @@ export default function StackAnalysis() {
   const [reportDone, setReportDone]   = useState(false)
   const [reportError, setReportError] = useState(null)
 
-  const reportRef    = useRef(null)
-  const cveTableRef  = useRef(null)
-  const lastTokenRef = useRef(0)
+  const [exporting, setExporting]     = useState(false)
+  const [exportError, setExportError] = useState('')
 
-  // Detect stream done via silence
-  useEffect(() => {
-    if (!reportStreaming) return
-    lastTokenRef.current = Date.now()
-  }, [report])
-
-  useEffect(() => {
-    if (!reportStreaming) return
-    const id = setInterval(() => {
-      if (Date.now() - lastTokenRef.current > 1500 && report) {
-        setReportStreaming(false)
-        setReportDone(true)
-        clearInterval(id)
-      }
-    }, 400)
-    return () => clearInterval(id)
-  }, [reportStreaming, report])
+  const reportRef   = useRef(null)
+  const cveTableRef = useRef(null)
 
   useEffect(() => {
     if (report) reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -150,12 +134,12 @@ export default function StackAnalysis() {
     setReportError(null)
     setReportDone(false)
     setReportStreaming(true)
-    lastTokenRef.current = Date.now()
     streamStackReport(
       techList,
       analysis,
       (token) => setReport(prev => prev + token),
       (err)   => { setReportError(err); setReportStreaming(false) },
+      ()      => { setReportStreaming(false); setReportDone(true) },
     )
   }
 
@@ -530,22 +514,57 @@ export default function StackAnalysis() {
           <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4" ref={reportRef}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-100">AI Risk Report</p>
-              {!reportStreaming && !report && (
+              <div className="flex items-center gap-2">
+                {!reportStreaming && !report && (
+                  <button
+                    onClick={startReport}
+                    className="px-4 py-1.5 rounded-lg bg-brand hover:bg-brand/80 text-white text-xs font-medium transition-colors"
+                  >
+                    Generate Report
+                  </button>
+                )}
+                {reportDone && (
+                  <button
+                    onClick={startReport}
+                    className="px-4 py-1.5 rounded-lg border border-border hover:bg-white/5 text-slate-400 text-xs transition-colors"
+                  >
+                    Regenerate Report
+                  </button>
+                )}
                 <button
-                  onClick={startReport}
-                  className="px-4 py-1.5 rounded-lg bg-brand hover:bg-brand/80 text-white text-xs font-medium transition-colors"
+                  disabled={exporting}
+                  onClick={async () => {
+                    setExporting(true)
+                    setExportError('')
+                    try {
+                      await exportStackPDF(techList.join(', '), analysis, report)
+                    } catch {
+                      setExportError('Export failed')
+                      setTimeout(() => setExportError(''), 3000)
+                    } finally {
+                      setExporting(false)
+                    }
+                  }}
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    background: 'transparent',
+                    border: '1px solid #334155',
+                    color: exporting ? '#475569' : '#94a3b8',
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    opacity: exporting ? 0.6 : 1,
+                    transition: 'border-color 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!exporting) { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444' } }}
+                  onMouseLeave={e => { if (!exporting) { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#94a3b8' } }}
                 >
-                  Generate Report
+                  {exporting ? 'Exporting…' : '↓ Export PDF'}
                 </button>
-              )}
-              {reportDone && (
-                <button
-                  onClick={startReport}
-                  className="px-4 py-1.5 rounded-lg border border-border hover:bg-white/5 text-slate-400 text-xs transition-colors"
-                >
-                  Regenerate Report
-                </button>
-              )}
+                {exportError && (
+                  <span style={{ fontSize: '0.7rem', color: '#ef4444' }}>{exportError}</span>
+                )}
+              </div>
             </div>
 
             {reportStreaming && !report && (
