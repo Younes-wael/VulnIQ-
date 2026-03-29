@@ -1,38 +1,39 @@
-"""Handles semantic search over ChromaDB — embeds user queries and retrieves top-K most relevant CVE chunks."""
+"""Handles semantic search over Qdrant Cloud — embeds user queries and retrieves top-K most relevant CVE chunks."""
 
+import os
 import re
 
-import chromadb
+import streamlit as st
 from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchText
 
-from config import EMBEDDING_MODEL, CHROMA_PATH, TOP_K_RETRIEVAL
+from config import EMBEDDING_MODEL, TOP_K_RETRIEVAL
 from core.db import get_db
 
 
 CVE_ID_PATTERN = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
 
-_embedding_model: SentenceTransformer | None = None
-_chroma_collection: chromadb.Collection | None = None
+_qdrant_client: QdrantClient | None = None
+COLLECTION_NAME = "cve_vulnerabilities"
 
 
+@st.cache_resource
 def get_embedding_model() -> SentenceTransformer:
     """Return the shared embedding model, loading it on first call."""
-    global _embedding_model
-    if _embedding_model is None:
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL)
-    return _embedding_model
+    return SentenceTransformer(EMBEDDING_MODEL)
 
 
-def get_collection() -> chromadb.Collection:
-    """Return the shared ChromaDB collection, initializing it on first call."""
-    global _chroma_collection
-    if _chroma_collection is None:
-        client = chromadb.PersistentClient(path=CHROMA_PATH)
-        _chroma_collection = client.get_or_create_collection(
-            name="cve_vulnerabilities",
-            metadata={"hnsw:space": "cosine"},
-        )
-    return _chroma_collection
+def get_qdrant_client() -> QdrantClient:
+    """Return the shared Qdrant client, initializing it on first call."""
+    global _qdrant_client
+    if _qdrant_client is None:
+        url = os.environ.get("QDRANT_URL")
+        api_key = os.environ.get("QDRANT_API_KEY")
+        if not url or not api_key:
+            raise RuntimeError("QDRANT_URL and QDRANT_API_KEY must be set in environment")
+        _qdrant_client = QdrantClient(url=url, api_key=api_key, timeout=30)
+    return _qdrant_client
 
 
 def _sqlite_result(row) -> dict:
@@ -67,12 +68,49 @@ def _fetch_exact_cves(cve_ids: list[str]) -> list[dict]:
     return [_sqlite_result(r) for r in rows]
 
 
+def _build_qdrant_filter(filters: dict) -> Filter | None:
+    """Translate retrieve() filter dict into a Qdrant Filter object."""
+    conditions = []
+
+    if filters.get("severities"):
+        conditions.append(
+            FieldCondition(key="severity", match=MatchAny(any=filters["severities"]))
+        )
+
+    if "severity" in filters and not filters.get("severities"):
+        conditions.append(
+            FieldCondition(key="severity", match=MatchAny(any=[filters["severity"]]))
+        )
+
+    # Year is stored as string ('2022') in the payload — enumerate the range
+    year_from = filters.get("year_from")
+    year_to = filters.get("year_to")
+    if year_from or year_to:
+        lo = int(year_from) if year_from else 2002
+        hi = int(year_to) if year_to else 2024
+        year_strings = [str(y) for y in range(lo, hi + 1)]
+        conditions.append(
+            FieldCondition(key="year", match=MatchAny(any=year_strings))
+        )
+
+    if filters.get("vendor"):
+        conditions.append(
+            FieldCondition(key="vendors", match=MatchText(text=filters["vendor"]))
+        )
+
+    if not conditions:
+        return None
+    if len(conditions) == 1:
+        return Filter(must=[conditions[0]])
+    return Filter(must=conditions)
+
+
 def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
     """Retrieve top-K most relevant CVE chunks for a query.
 
     If the query contains explicit CVE IDs (e.g. CVE-2021-44228), those are
     fetched directly from SQLite so the LLM always receives the right record.
-    Remaining slots are filled with semantic search results.
+    Remaining slots are filled with semantic search results from Qdrant.
 
     Args:
         query: Search query string
@@ -80,7 +118,8 @@ def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
         filters: Optional dict with filter criteria
 
     Returns:
-        List of result dictionaries
+        List of result dictionaries with keys:
+        cve_id, document, severity, cvss_score, year, vendors, products, relevance_score
     """
     if top_k is None:
         top_k = TOP_K_RETRIEVAL
@@ -95,55 +134,37 @@ def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
 
     semantic_results = []
     if semantic_top_k > 0:
-        collection = get_collection()
         model = get_embedding_model()
-        embedding = model.encode([query])[0]
+        embedding = model.encode([query])[0].tolist()
 
-        # Build where clause
-        where = None
-        if filters:
-            conditions = []
+        qdrant_filter = _build_qdrant_filter(filters) if filters else None
 
-            if filters.get('severities'):
-                conditions.append({"severity": {"$in": filters['severities']}})
-
-            if 'year_from' in filters:
-                conditions.append({"year": {"$gte": str(filters['year_from'])}})
-
-            if 'year_to' in filters:
-                conditions.append({"year": {"$lte": str(filters['year_to'])}})
-
-            if 'vendor' in filters:
-                conditions.append({"vendors": {"$contains": filters['vendor']}})
-
-            if len(conditions) == 1:
-                where = conditions[0]
-            elif len(conditions) > 1:
-                where = {"$and": conditions}
-
-        # Query ChromaDB
-        raw = collection.query(
-            query_embeddings=[embedding.tolist()],
-            n_results=semantic_top_k,
-            where=where,
+        client = get_qdrant_client()
+        response = client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=embedding,
+            limit=semantic_top_k,
+            query_filter=qdrant_filter,
+            with_payload=True,
         )
 
-        if raw['ids'] and raw['ids'][0]:
-            for i in range(len(raw['ids'][0])):
-                cve_id = raw['ids'][0][i]
-                if cve_id in exact_ids:
-                    continue  # already included from exact lookup
-                metadata = raw['metadatas'][0][i]
-                semantic_results.append({
-                    "cve_id": cve_id,
-                    "document": raw['documents'][0][i],
-                    "severity": metadata.get('severity', ''),
-                    "cvss_score": float(metadata.get('cvss_score', 0)) if metadata.get('cvss_score') else None,
-                    "year": int(metadata.get('year', 0)) if metadata.get('year') else None,
-                    "vendors": metadata.get('vendors', ''),
-                    "products": metadata.get('products', ''),
-                    "relevance_score": max(0.0, round(1 - raw['distances'][0][i], 4)),
-                })
+        for hit in response.points:
+            payload = hit.payload
+            cve_id = payload.get("cve_id", "")
+            if cve_id in exact_ids:
+                continue
+            cvss_raw = payload.get("cvss_score")
+            year_raw = payload.get("year")
+            semantic_results.append({
+                "cve_id": cve_id,
+                "document": payload.get("document", ""),
+                "severity": payload.get("severity", ""),
+                "cvss_score": float(cvss_raw) if cvss_raw else None,
+                "year": int(year_raw) if year_raw else None,
+                "vendors": payload.get("vendors", ""),
+                "products": payload.get("products", ""),
+                "relevance_score": round(float(hit.score), 4),
+            })
 
     # Exact matches first, then semantic results
     return exact_results + semantic_results
@@ -151,10 +172,10 @@ def retrieve(query: str, top_k: int = None, filters: dict = None) -> list[dict]:
 
 def get_cve_by_id(cve_id: str) -> dict | None:
     """Fetch a single CVE by exact ID from SQLite database.
-    
+
     Args:
         cve_id: CVE ID to lookup
-        
+
     Returns:
         CVE dict or None if not found
     """
@@ -182,23 +203,23 @@ def get_cve_by_id(cve_id: str) -> dict | None:
             "severity": severity,
             "year": year,
             "vendors": vendors,
-            "products": products
+            "products": products,
         }
     return None
 
 
 def format_context(results: list[dict]) -> str:
     """Format retrieval results as context string for LLM prompts.
-    
+
     Args:
         results: List of result dicts from retrieve()
-        
+
     Returns:
         Formatted context string
     """
     if not results:
         return "No relevant CVEs found."
-    
+
     context = ""
     for result in results:
         cve_id = result['cve_id']
@@ -206,12 +227,12 @@ def format_context(results: list[dict]) -> str:
         cvss_score = result['cvss_score'] if result['cvss_score'] is not None else 'N/A'
         vendors = result['vendors']
         products = result['products']
-        
+
         description = result['document']
-        
+
         context += f"[{cve_id}] Severity: {severity} | CVSS: {cvss_score}\n"
         context += f"Vendors: {vendors} | Products: {products}\n"
         context += f"Description: {description}\n"
         context += "---\n"
-    
+
     return context

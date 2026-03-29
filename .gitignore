@@ -2,10 +2,10 @@ start.bat
 start.ps1
 data/raw/
 data/processed/
-db/
+db/chroma/
 __pycache__/
 *.pyc
 .env
-*.sqlite
 .streamlit/
 frontend/node_modules/
+frontend/dist/

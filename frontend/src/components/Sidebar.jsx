@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import FeedbackDrawer from './FeedbackDrawer'
 
 const NAV = [
   {
@@ -125,6 +126,8 @@ function NavItem({ to, label, color, icon, onClose }) {
 }
 
 export default function Sidebar({ onClose }) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
   return (
     <div
       className="flex flex-col h-full"
@@ -190,10 +193,40 @@ export default function Sidebar({ onClose }) {
       </nav>
 
       {/* ── Footer ── */}
-      <div className="px-5 py-4" style={{ borderTop: '1px solid #334155' }}>
-        <p style={{ fontSize: '0.65rem', color: '#64748b', marginBottom: '2px' }}>Powered by NVD + Groq</p>
-        <p style={{ fontSize: '0.6rem', color: '#475569' }}>© 2025 VulnLens</p>
+      <div className="px-5 py-4">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 10px',
+            background: 'transparent',
+            border: '1px solid #334155',
+            borderRadius: '7px',
+            color: '#64748b',
+            fontSize: '0.72rem',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'border-color 0.15s, color 0.15s',
+            width: '100%',
+            marginBottom: '12px',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#94a3b8' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#64748b' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          Send Feedback
+        </button>
+        <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+          <p style={{ fontSize: '0.65rem', color: '#64748b', marginBottom: '2px' }}>Powered by NVD + Groq</p>
+          <p style={{ fontSize: '0.6rem', color: '#475569' }}>© 2025 VulnLens</p>
+        </div>
       </div>
+
+      <FeedbackDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
   )
 }

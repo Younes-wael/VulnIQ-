@@ -7,7 +7,7 @@ import SeverityBadge from '../components/SeverityBadge'
 const FEATURES = [
   {
     to: '/chat',
-    color: '#8b5cf6',
+    color: '#a855f7',
     title: 'Chat',
     desc: 'Ask natural language questions about CVEs and get cited answers grounded in NVD data.',
   },
@@ -37,13 +37,13 @@ const FEATURES = [
   },
   {
     to: '/sbom',
-    color: '#10b981',
+    color: '#22c55e',
     title: 'SBOM Scanner',
     desc: 'Upload a dependency file and instantly surface all known CVEs affecting your packages.',
   },
   {
     to: '/watchlists',
-    color: '#10b981',
+    color: '#ec4899',
     title: 'Watchlists',
     desc: 'Monitor vendors, products, and keywords. Get webhook alerts the moment new CVEs match.',
   },
@@ -58,19 +58,19 @@ const QUICK_ACTIONS = [
   },
   {
     to: '/sbom',
-    borderColor: '#10b981',
+    borderColor: '#22c55e',
     title: 'Scan a Dependency File',
     desc: 'Upload requirements.txt, package.json, or pom.xml',
   },
   {
     to: '/watchlists',
-    borderColor: '#10b981',
+    borderColor: '#06b6d4',
     title: 'Set Up a Watchlist',
     desc: 'Get alerted when new CVEs match your stack',
   },
   {
     to: '/advisor',
-    borderColor: '#6366f1',
+    borderColor: '#a855f7',
     title: 'Look Up a CVE',
     desc: 'Get AI-generated patch advice for any CVE ID',
   },
