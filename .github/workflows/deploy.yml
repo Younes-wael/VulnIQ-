@@ -25,3 +25,15 @@ jobs:
           tags: vulnlensacr.azurecr.io/vulnlens:latest
           build-args: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp update \
+            --name vulnlens \
+            --resource-group vulnlens-rg \
+            --image vulnlensacr.azurecr.io/vulnlens:latest
