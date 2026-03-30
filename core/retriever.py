@@ -2,8 +2,8 @@
 
 import os
 import re
+from functools import lru_cache
 
-import streamlit as st
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchText
@@ -18,7 +18,7 @@ _qdrant_client: QdrantClient | None = None
 COLLECTION_NAME = "cve_vulnerabilities"
 
 
-@st.cache_resource
+@lru_cache(maxsize=1)
 def get_embedding_model() -> SentenceTransformer:
     """Return the shared embedding model, loading it on first call."""
     return SentenceTransformer(EMBEDDING_MODEL)

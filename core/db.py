@@ -42,4 +42,7 @@ def create_watchlist_tables() -> None:
     """)
 
 
-create_watchlist_tables()
+try:
+    create_watchlist_tables()
+except Exception as e:
+    print(f"WARNING: could not create watchlist tables: {e}")
