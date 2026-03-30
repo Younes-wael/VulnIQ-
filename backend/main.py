@@ -118,16 +118,31 @@ def health():
     return {"status": "ok", "routers": _routers_loaded}
 
 
-# ── Serve React build (must come after all /api routes) ──────────────────────
+# ── Serve landing page at / ───────────────────────────────────────────────────
+
+_LANDING = os.path.join(os.path.dirname(__file__), "..", "landing.html")
+
+@app.get("/")
+async def serve_landing():
+    if os.path.isfile(_LANDING):
+        return FileResponse(_LANDING)
+    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist", "index.html"))
+
+
+# ── Serve React build under /app (must come after all /api routes) ────────────
 
 _DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
 if os.path.isdir(_DIST):
     _assets = os.path.join(_DIST, "assets")
     if os.path.isdir(_assets):
-        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+        app.mount("/app/assets", StaticFiles(directory=_assets), name="assets")
 
-    @app.get("/{full_path:path}")
+    @app.get("/app")
+    async def serve_app():
+        return FileResponse(os.path.join(_DIST, "index.html"))
+
+    @app.get("/app/{full_path:path}")
     async def serve_spa(full_path: str):
         candidate = os.path.join(_DIST, full_path)
         if os.path.isfile(candidate):
