@@ -1,6 +1,7 @@
 """
 Chat router — SSE streaming endpoint backed by RAG pipeline.
 """
+# build-trigger: 2026-03-30
 
 import sys
 import os
