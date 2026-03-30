@@ -23,9 +23,9 @@ COPY . .
 # Build React — outputs to frontend/dist/
 RUN cd frontend && npm run build
 
-# Ensure db/ dir exists; if cve.sqlite is missing or an LFS pointer,
-# core/db.py will detect it at startup and create a fresh empty database.
+# Ensure db/ dir exists and download the real CVE database from GitHub Releases
 RUN mkdir -p db
+RUN curl -L -o db/cve.sqlite "https://github.com/Younes-wael/VulnIQ-/releases/download/v1.0-data/cve.sqlite"
 
 EXPOSE 8000
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
