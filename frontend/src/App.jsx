@@ -11,7 +11,7 @@ import Watchlists   from './pages/Watchlists'
 
 export default function App() {
   return (
-    <BrowserRouter basename="/app">
+    <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/"         element={<Home />} />
