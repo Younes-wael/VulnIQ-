@@ -34,7 +34,8 @@ async def _sse_stream(message: str, filters: dict, history: list) -> AsyncGenera
             if token.startswith("Error:"):
                 yield f"data: [ERROR] {token}\n\n"
                 return
-            yield f"data: {token.replace(chr(10), '\\n')}\n\n"
+            escaped = token.replace("\n", "\\n")
+            yield f"data: {escaped}\n\n"
 
         if results:
             cve_ids = ",".join(r["cve_id"] for r in results)

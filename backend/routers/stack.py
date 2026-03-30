@@ -61,7 +61,8 @@ async def _sse_report(technologies: list[str], analysis: dict) -> AsyncGenerator
             if token.startswith("Error:"):
                 yield f"data: [ERROR] {token}\n\n"
                 return
-            yield f"data: {token.replace(chr(10), '\\n')}\n\n"
+            escaped = token.replace("\n", "\\n")
+            yield f"data: {escaped}\n\n"
     except Exception as exc:
         yield f"data: [ERROR] {exc}\n\n"
 
